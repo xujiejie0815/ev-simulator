@@ -461,6 +461,9 @@ function update8y(){
     const d=calcAt(rates[ri]);
     if(d.cashFlow+d.bfix*(u-1)/u>=ch.totalInit/8){beRate8=rates[ri];break;}
   }
+  // 年間損益分岐稼働率（単年黒字になる最低稼働率）
+  let beRateAnnual=null;
+  for(let ri=0;ri<rates.length;ri++){if(calcAt(rates[ri]).net>0){beRateAnnual=rates[ri];break;}}
 
   document.getElementById('sum8y').innerHTML=`
     <h3>💰 8年間収益サマリー（平均稼働率 ${avgRate.toFixed(1)}%）</h3>
@@ -477,6 +480,14 @@ function update8y(){
     <div class="s8row pur"><span>初期投資</span><span>${fmtM(ch.totalInit)}</span></div>
     <div class="${total8net>=0?'s8row pos':'s8row neg'}"><span>8年間純損益</span><span>${fmtM(total8net)}</span></div>
     <div class="s8row sec"><span>── 損益分岐 ──</span></div>
+    <div class="${beRateAnnual!==null?'s8row be':'s8row neg'}">
+      <span>📊 年間損益分岐稼働率</span>
+      <span>${beRateAnnual!==null?beRateAnnual.toFixed(1)+'%':'未達'}</span>
+    </div>
+    <div class="s8row">
+      <span>📈 8年平均稼働率（目標）</span>
+      <span style="color:#f0d060;">${avgRate.toFixed(1)}%</span>
+    </div>
     <div class="${beRate8!==null?'s8row be':'s8row neg'}">
       <span>🎯 損益分岐稼働率（定常）</span>
       <span>${beRate8!==null?beRate8.toFixed(1)+'%':'未達'}</span>
