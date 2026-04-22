@@ -188,6 +188,13 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
       <span>%</span>
     </div>
   </div>
+  <div class="ctrl-group">
+    <label>年間保守費用</label>
+    <div class="input-row">
+      <input type="number" id="inFixed" value="340000" step="10000" min="0" style="width:90px" oninput="updateAll()">
+      <span>円/年</span>
+    </div>
+  </div>
   <div class="ctrl-group" style="border:1.5px solid #3a5070;">
     <label style="color:#f0d060;">設置台数</label>
     <div class="input-row">
@@ -196,6 +203,8 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
     </div>
   </div>
 </div>
+
+<div class="cards" id="cards"></div>
 
 <!-- ===== 8年間事業試算 ===== -->
 <div class="section-8y">
@@ -243,7 +252,7 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
 <div class="elec-comp">
   <h2>⚡ 電気代 3社比較（稼働率 0〜100%）<span id="elecKWLabel" style="font-size:.8rem;color:#6090b0;margin-left:12px;font-weight:400;"></span></h2>
   <div id="elecUnitRow" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
-  <div class="elec-chart-wrap"><canvas id="elecChart"></canvas></div>
+  <div class="elec-chart-wrap"><canvas id="elecChart" style="display:block;width:100%;height:100%;"></canvas></div>
   <div class="elec-cross" id="elecCross"></div>
   <div class="elec-note">
     ・電力会社：基本料金 2,530円/kW/月 ＋ 従量 17.43円/kWh<br>
@@ -253,7 +262,6 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
   </div>
 </div>
 
-<div class="cards" id="cards"></div>
 <div class="main-grid">
   <div>
     <div class="chart-box">
@@ -277,7 +285,8 @@ const CHARGERS=[
   {label:'150kW 1口',kw:150,ports:1, price:7350075,cost:5444500,profit:1905575,subsBody:5000000,bodyInit:2350075,addon:400000,work:7000000,subsWork:5000000,workInit:2000000,totalInit:4750075},
   {label:'180kW 2口',kw:180,ports:2, price:9150030,cost:6777800,profit:2372230,subsBody:7000000,bodyInit:2150030,addon:400000,work:7000000,subsWork:5000000,workInit:2000000,totalInit:4550030},
 ];
-const FIXED=340000;
+function getFixed(){return+(document.getElementById('inFixed').value||340000);}
+const FIXED=340000; // 後方互換用（getFixed()を使用）
 const DEP_YEARS=8;
 const ADDON_PROFIT=140000;   // 付帯設備利益（全kW共通）
 const MAINTENANCE_SELL=240000;  // 保守売値/年
@@ -343,10 +352,10 @@ function calcAt(r){
   const bShare=rev*share;
   const bTotal=bShare+bfix;
   const {cost:ec,name:pwName}=getElec(r);
-  const totalCost=bTotal+ec+FIXED+dep;
+  const totalCost=bTotal+ec+getFixed()+dep;
   const net=rev-totalCost;
   // net before depreciation (cash flow)
-  const cashFlow=rev-bTotal-ec-FIXED;
+  const cashFlow=rev-bTotal-ec-getFixed();
   return{mins,rev,bShare,bfix,bTotal,ec,pwName,dep,totalCost,net,cashFlow};
 }
 
@@ -410,7 +419,7 @@ function update8y(){
   const total8rev =yearData.reduce((a,d)=>a+d.rev,0)*u;
   const total8b   =yearData.reduce((a,d)=>a+d.bShare,0)*u + yearData.reduce((a,d)=>a+d.bfix,0);
   const total8ec  =yearData.reduce((a,d)=>a+d.ec,0)*u;
-  const total8fix =FIXED*8*u;
+  const total8fix =getFixed()*8*u;
   const total8net =cumData[7];
 
   // 投資回収年（bfixは定額なのでper-unit換算して比較）
@@ -532,7 +541,7 @@ function update(){
     <div class="card"><div class="card-label">総計初期コスト${uLabel}</div><div class="card-val blue">${fmt(ch.totalInit*u)}</div></div>
     <div class="card"><div class="card-label">年間売上（稼働率${avgRate2.toFixed(1)}%）${uLabel}</div><div class="card-val" style="color:#6ab0ff">${fmt(avgRev*u)}</div></div>
     <div class="card"><div class="card-label">年間償却費（÷8年）${uLabel}</div><div class="card-val purple">${fmt(dep*u)}</div></div>
-    <div class="card"><div class="card-label">年間固定費（保守+技術士）${uLabel}</div><div class="card-val">${fmt(FIXED*u)}</div></div>
+    <div class="card"><div class="card-label">年間固定費（保守+技術士）${uLabel}</div><div class="card-val">${fmt(getFixed()*u)}</div></div>
     <div class="card"><div class="card-label">B社固定費/年（台数問わず定額）</div><div class="card-val orange">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#806040;margin-left:4px;">(月${fmt(bfixMonthly)})</span></div></div>
     <div class="card"><div class="card-label">損益分岐（年間・償却後）</div><div class="card-val ${beRate!==null?'green':'red'}">${beRate!==null?beRate.toFixed(1)+'%':'未達'}</div></div>
   `;
@@ -555,7 +564,7 @@ function update(){
     <div class="irow sec"><span>── 年間固定費${m} ──</span></div>
     <div class="irow"><span>充電器保守管理費</span><span>${fmt(240000*u)}/年</span></div>
     <div class="irow"><span>主任電気技術士</span><span>${fmt(100000*u)}/年</span></div>
-    <div class="irow sub"><span>固定費合計</span><span>${fmt(FIXED*u)}/年</span></div>
+    <div class="irow sub"><span>固定費合計</span><span>${fmt(getFixed()*u)}/年</span></div>
     <div class="irow sec"><span>── B社費用 ──</span></div>
     <div class="irow"><span>売上シェア</span><span>売上×${share}%</span></div>
     <div class="irow"><span>固定費（定額）</span><span>${fmt(bfixAnnual)}/年</span></div>
@@ -588,7 +597,7 @@ function update(){
       <td style="color:#d09060">${fmt(d.bShare*u)}</td>
       <td style="color:#c07040">${fmt(d.bfix)}</td>
       <td style="color:#7090d0">${fmt(d.ec*u)}</td>
-      <td style="color:#909090">${fmt(FIXED*u)}</td>
+      <td style="color:#909090">${fmt(getFixed()*u)}</td>
       <td style="color:#b070f0">${fmt(d.dep*u)}</td>
       <td style="color:#b09070">${fmt(d.totalCost*u-d.bfix*(u-1))}</td>
       <td style="font-weight:700;color:${netTotal>=0?'#50d080':'#ff7070'}">${fmt(netTotal)}</td>
