@@ -140,16 +140,16 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
 .elec-kw-tabs{display:flex;gap:8px;margin-bottom:16px;}
 .elec-kw-tab{padding:5px 16px;border:1.5px solid #2a4060;border-radius:20px;background:transparent;color:#7090b0;font-size:.82rem;cursor:pointer;transition:all .15s;}
 .elec-kw-tab.active{background:#1a3a5a;border-color:#4a90ff;color:#8ab4ff;}
-.elec-chart-wrap{position:relative;height:380px;}
-.elec-panel-grid{display:flex;gap:16px;align-items:flex-start;}
-.elec-panel-grid>div:first-child{flex:1;min-width:0;}
-.elec-sidebar{width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;}
+.elec-panel-grid{display:grid;grid-template-columns:1fr 220px;gap:16px;align-items:start;}
+.elec-chart-box{background:#0d1520;border-radius:8px;padding:16px;}
+.elec-chart-box canvas{max-height:380px;}
+.elec-sidebar{display:flex;flex-direction:column;gap:10px;}
 .elec-sidebar-card{background:#0d1828;border:1px solid #1e3050;border-radius:8px;padding:12px;}
 .elec-sidebar-card h4{font-size:.78rem;color:#70a0d0;font-weight:700;margin-bottom:8px;letter-spacing:1px;}
 .elec-zone-item{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border-left:3px solid;margin-bottom:4px;background:rgba(0,0,0,.2);border-radius:0 4px 4px 0;}
 .elec-cross-item{padding:5px 8px;border-bottom:1px solid #1a2a40;font-size:.78rem;line-height:1.7;}
 .elec-cross-item:last-child{border-bottom:none;}
-@media(max-width:700px){.elec-panel-grid{flex-direction:column;}.elec-sidebar{width:100%;}}
+@media(max-width:700px){.elec-panel-grid{grid-template-columns:1fr;}.elec-sidebar{width:100%;}}
 .elec-note{font-size:.72rem;color:#506080;margin-top:10px;line-height:1.7;}
 .elec-cross{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;}
 .elec-cross-tag{font-size:.75rem;padding:3px 10px;border-radius:12px;background:#0a1828;}
@@ -748,7 +748,7 @@ function updateElecChart(){
   // build panel HTML
   const panel=document.getElementById('elecPanel');
   panel.innerHTML=`<div class="elec-panel-grid">
-    <div><canvas id="elecChartCanvas"></canvas></div>
+    <div class="elec-chart-box"><canvas id="elecChartCanvas"></canvas></div>
     <div class="elec-sidebar">
       <div class="elec-sidebar-card">
         <h4>🏆 最安ゾーン</h4>
@@ -761,18 +761,18 @@ function updateElecChart(){
     </div>
   </div>`;
 
-  // background zone plugin
+  // background zone plugin (index-based for category scale reliability)
   const bgPlugin={
     id:'elecBg',
     beforeDraw(chart){
       const{ctx,chartArea,scales:{x}}=chart;
       if(!chartArea) return;
       const{top,bottom}=chartArea;
-      const zoneColors={'d':'rgba(74,158,255,.07)','1':'rgba(80,208,128,.07)','2':'rgba(255,112,112,.07)'};
-      zones.forEach((z,i)=>{
-        const endR=i<zones.length-1?zones[i+1].start-0.5:100;
-        const x0=x.getPixelForValue(z.start.toFixed(1)+'%');
-        const x1=x.getPixelForValue(endR.toFixed(1)+'%');
+      const zoneColors={'d':'rgba(74,158,255,.08)','1':'rgba(80,208,128,.08)','2':'rgba(255,112,112,.08)'};
+      zones.forEach((z,zi)=>{
+        const endI=zi<zones.length-1?zones[zi+1].startI:data.length-1;
+        const x0=x.getPixelForValue(z.startI);
+        const x1=x.getPixelForValue(endI);
         ctx.fillStyle=zoneColors[z.best];
         ctx.fillRect(x0,top,x1-x0,bottom-top);
       });
