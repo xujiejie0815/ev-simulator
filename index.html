@@ -128,7 +128,7 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
 .elec-kw-tabs{display:flex;gap:8px;margin-bottom:16px;}
 .elec-kw-tab{padding:5px 16px;border:1.5px solid #2a4060;border-radius:20px;background:transparent;color:#7090b0;font-size:.82rem;cursor:pointer;transition:all .15s;}
 .elec-kw-tab.active{background:#1a3a5a;border-color:#4a90ff;color:#8ab4ff;}
-.elec-chart-wrap{position:relative;height:320px;}
+.elec-chart-wrap{position:relative;height:380px;}
 .elec-note{font-size:.72rem;color:#506080;margin-top:10px;line-height:1.7;}
 .elec-cross{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;}
 .elec-cross-tag{font-size:.75rem;padding:3px 10px;border-radius:12px;background:#0a1828;}
@@ -226,21 +226,6 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
   </div>
 </div>
 
-<div class="cards" id="cards"></div>
-<div class="main-grid">
-  <div>
-    <div class="chart-box">
-      <h2>📈 稼働率別 年間純利益（8年償却後）</h2>
-      <canvas id="mainChart"></canvas>
-    </div>
-    <div class="tbl-wrap">
-      <h2>📋 稼働率別 詳細試算</h2>
-      <table id="mainTable"></table>
-    </div>
-  </div>
-  <div class="init-box" id="initBox"></div>
-</div>
-
 <!-- B社収益試算 -->
 <div class="brev-section" id="bRevSection">
   <!-- JSで描画 -->
@@ -258,6 +243,23 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
     ・7EM②：基本料金 なし ＋ 従量 45.00円/kWh<br>
     ・分単価 = 実効kW ÷ 60 × 従量料金（基本料金は定格kWで固定）
   </div>
+</div>
+
+<div class="cards" id="cards"></div>
+<div class="main-grid">
+  <div>
+    <div class="chart-box">
+      <h2>📈 稼働率別 年間純利益（8年償却後）</h2>
+      <canvas id="mainChart"></canvas>
+    </div>
+  </div>
+  <div class="init-box" id="initBox"></div>
+</div>
+
+<!-- ローデータ（稼働率別詳細試算） -->
+<div class="tbl-wrap" style="margin-top:14px;">
+  <h2>📋 稼働率別 詳細試算</h2>
+  <table id="mainTable"></table>
 </div>
 
 <script>
