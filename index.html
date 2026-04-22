@@ -487,6 +487,13 @@ function update8y(){
     </div>
   `;
 
+  // 投資回収年数カードを更新
+  const byVal=document.getElementById('cardBeYearVal');
+  if(byVal){
+    byVal.textContent=beYear?beYear.toFixed(1)+'年':'8年超';
+    byVal.className='card-val '+(beYear&&beYear<=8?'green':beYear?'orange':'red');
+  }
+
   // 8年チャート（棒：累積損益 ＋ 折れ線：稼働率推移）
   if(chart8)chart8.destroy();
   const labels=['1年目','2年目','3年目','4年目','5年目','6年目','7年目','8年目'];
@@ -564,6 +571,7 @@ function update(){
     <div class="card"><div class="card-label">年間固定費（保守+技術士）${uLabel}</div><div class="card-val">${fmt(getFixed()*u)}</div></div>
     <div class="card"><div class="card-label">B社固定費/年（台数問わず定額）</div><div class="card-val orange">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#806040;margin-left:4px;">(月${fmt(bfixMonthly)})</span></div></div>
     <div class="card"><div class="card-label">損益分岐（年間・償却後）</div><div class="card-val ${beRate!==null?'green':'red'}">${beRate!==null?beRate.toFixed(1)+'%':'未達'}</div></div>
+    <div class="card" id="cardBeYear"><div class="card-label">投資回収年数（8年試算）</div><div class="card-val" id="cardBeYearVal">…</div></div>
   `;
 
   const m=u>1?` ×${u}台`:''; // 台数ラベル
