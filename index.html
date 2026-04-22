@@ -469,11 +469,31 @@ function update8y(){
     const d=calcAt(rates[ri]);
     if(d.cashFlow+d.bfix*(u-1)/u>=ch.totalInit/8){beRate8=rates[ri];break;}
   }
-  // 年間損益分岐稼働率（単年黒字になる最低稼働率）
-  // 年間損益分岐稼働率 = 減価償却なしの操業CFが黒字になる稼働率（beRate8より低い値になる）
+  // 年間損益分岐稼働率（操業CF黒字 = 減価償却なし）
   let beRateAnnual=null;
   for(let ri=0;ri<rates.length;ri++){
     if(calcAt(rates[ri]).cashFlow>0){beRateAnnual=rates[ri];break;}
+  }
+
+  // 8年間トータル黒字になる最低平均稼働率（成長モデルで二分探索）
+  function calc8yNet(tAvg){
+    const gr=findGrowthRate(startRate,tAvg);
+    const yRates=[];
+    for(let y=1;y<=8;y++) yRates.push(startRate*Math.pow(1+gr/100,y-1));
+    let cf=0;
+    yRates.forEach(r=>{const d=calcAt(r);cf+=d.cashFlow*u+d.bfix*(u-1);});
+    return cf-ch.totalInit*u;
+  }
+  let beAvg8=null;
+  // まず上限100%でも黒字にならない場合は未達
+  if(calc8yNet(100)>=0){
+    // 二分探索
+    let lo=startRate, hi=100;
+    for(let i=0;i<80;i++){
+      const mid=(lo+hi)/2;
+      if(calc8yNet(mid)<0) lo=mid; else hi=mid;
+    }
+    beAvg8=parseFloat(((lo+hi)/2).toFixed(1));
   }
 
   document.getElementById('sum8y').innerHTML=`
@@ -491,16 +511,20 @@ function update8y(){
     <div class="s8row pur"><span>初期投資</span><span>${fmtM(ch.totalInit)}</span></div>
     <div class="${total8net>=0?'s8row pos':'s8row neg'}"><span>8年間純損益</span><span>${fmtM(total8net)}</span></div>
     <div class="s8row sec"><span>── 損益分岐 ──</span></div>
+    <div class="${beAvg8!==null?'s8row be':'s8row neg'}" style="${beAvg8!==null?'background:rgba(80,208,128,.15);border-left:3px solid #50d080;':''}">
+      <span>🏁 8年トータル黒字になる最低平均稼働率</span>
+      <span style="font-size:.95rem;font-weight:700;">${beAvg8!==null?beAvg8.toFixed(1)+'%':'100%超（未達）'}</span>
+    </div>
+    <div class="s8row">
+      <span>📈 現在の8年平均稼働率（目標）</span>
+      <span style="color:${total8net>=0?'#50d080':'#f0d060'};">${avgRate.toFixed(1)}%${total8net>=0?' ✓':beAvg8!==null?' (目標 '+beAvg8.toFixed(1)+'% 必要)':''}</span>
+    </div>
     <div class="${beRateAnnual!==null?'s8row be':'s8row neg'}">
       <span>📊 年間損益分岐稼働率（償却前）</span>
       <span>${beRateAnnual!==null?beRateAnnual.toFixed(1)+'%':'未達'}</span>
     </div>
-    <div class="s8row">
-      <span>📈 8年平均稼働率（目標）</span>
-      <span style="color:#f0d060;">${avgRate.toFixed(1)}%</span>
-    </div>
     <div class="${beRate8!==null?'s8row be':'s8row neg'}">
-      <span>🎯 損益分岐稼働率（定常）</span>
+      <span>🎯 損益分岐稼働率（定常・償却込み）</span>
       <span>${beRate8!==null?beRate8.toFixed(1)+'%':'未達'}</span>
     </div>
     <div class="s8row ${beYear&&beYear<=8?'be':''}">
