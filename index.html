@@ -223,6 +223,13 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
       <span>台</span>
     </div>
   </div>
+  <div class="ctrl-group">
+    <label>稼働率 上限</label>
+    <div class="input-row">
+      <input type="number" id="inMaxRate" value="30" min="1" max="100" step="1" style="width:60px;" oninput="updateAll()">
+      <span>%</span>
+    </div>
+  </div>
 </div>
 
 <div class="cards" id="cards"></div>
@@ -306,6 +313,7 @@ const CHARGERS=[
   {label:'180kW 2口',kw:180,ports:2, price:9150030,cost:6777800,profit:2372230,subsBody:7000000,bodyInit:2150030,addon:400000,work:7000000,subsWork:5000000,workInit:2000000,totalInit:4550030},
 ];
 function getFixed(){return+(document.getElementById('inFixed').value||340000);}
+function getMaxRate(){return Math.min(100,Math.max(1,+(document.getElementById('inMaxRate').value||30)));}
 const FIXED=340000; // 後方互換用（getFixed()を使用）
 const DEP_YEARS=8;
 const ADDON_PROFIT=140000;   // 付帯設備利益（全kW共通）
@@ -617,24 +625,27 @@ function update(){
     <div class="irow"><span>固定費（定額）</span><span>${fmt(bfixAnnual)}/年</span></div>
   `;
 
+  const maxR=getMaxRate();
+  const visRates=rates.filter(r=>r<=maxR);
+
   if(chart)chart.destroy();
   chart=new Chart(document.getElementById('mainChart').getContext('2d'),{
     type:'line',
-    data:{labels:rates.map(r=>r.toFixed(1)+'%'),datasets:[
-      {label:'年間純利益（償却後）',data:rates.map(r=>{const d=calcAt(r);return d.net*u+d.bfix*(u-1);}),borderColor:'#50d080',backgroundColor:'rgba(80,208,128,.12)',borderWidth:2.5,pointRadius:0,tension:.3,fill:true},
-      {label:'年間売上',data:rates.map(r=>calcAt(r).rev*u),borderColor:'#4a90ff',backgroundColor:'rgba(74,144,255,.05)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,tension:.3},
+    data:{labels:visRates.map(r=>r.toFixed(1)+'%'),datasets:[
+      {label:'年間純利益（償却後）',data:visRates.map(r=>{const d=calcAt(r);return d.net*u+d.bfix*(u-1);}),borderColor:'#50d080',backgroundColor:'rgba(80,208,128,.12)',borderWidth:2.5,pointRadius:0,tension:.3,fill:true},
+      {label:'年間売上',data:visRates.map(r=>calcAt(r).rev*u),borderColor:'#4a90ff',backgroundColor:'rgba(74,144,255,.05)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,tension:.3},
     ]},
     options:{responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:'#a0b8d0',font:{size:11}}},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt(c.raw)}`}}},
       scales:{
-        x:{ticks:{color:'#5070a0',maxTicksLimit:16,font:{size:9},callback:(v,i)=>rates[i]%5===0?rates[i].toFixed(1)+'%':''},grid:{color:'rgba(60,90,140,.15)'}},
+        x:{ticks:{color:'#5070a0',maxTicksLimit:16,font:{size:9},callback:(v,i)=>visRates[i]%5===0?visRates[i].toFixed(1)+'%':''},grid:{color:'rgba(60,90,140,.15)'}},
         y:{ticks:{color:'#5070a0',callback:v=>(v<0?'−':'')+'¥'+Math.abs(Math.round(v/10000))+'万',font:{size:9}},grid:{color:'rgba(60,90,140,.15)'}}
       }
     }
   });
 
   let rows=`<tr><th>稼働率</th><th>稼働分/年</th><th>年間売上</th><th>B社シェア</th><th>B社固定費</th><th>電力費</th><th>固定費</th><th>償却費</th><th>総コスト</th><th>年間純利益</th></tr>`;
-  rates.forEach((r,i)=>{
+  visRates.forEach((r,i)=>{
     const d=calcAt(r);
     const netTotal=d.net*u+d.bfix*(u-1);
     rows+=`<tr class="${netTotal>=0?'pro':'los'}">
@@ -662,8 +673,10 @@ function getElecCosts(kw){
   const outPct=getOutputPct();
   const effectiveKW=kw*outPct;
   const kwhPerMin=effectiveKW/60;
+  const maxR=getMaxRate();
+  const steps=Math.round(maxR/0.5);
   const pts=[];
-  for(let i=0;i<=200;i++) pts.push(parseFloat((i*0.5).toFixed(1))); // 0〜100%
+  for(let i=0;i<=steps;i++) pts.push(parseFloat((i*0.5).toFixed(1)));
   return pts.map(r=>{
     const mins=(r/100)*365*24*60;
     return{
@@ -737,9 +750,10 @@ function updateElecChart(){
   const tag   =(c)=>`<span style="display:inline-block;padding:1px 7px;border-radius:10px;background:${cColor(c)}22;color:${cColor(c)};font-weight:700;font-size:.78rem;">${cName(c)}</span>`;
 
   // zone items html
+  const maxRateForZone=data[data.length-1].r;
   let zonesHtml='';
   zones.forEach((z,i)=>{
-    const endRate=i<zones.length-1?zones[i+1].start-0.5:100;
+    const endRate=i<zones.length-1?zones[i+1].start-0.5:maxRateForZone;
     zonesHtml+=`<div class="elec-zone-item" style="border-left-color:${cColor(z.best)};">
       <span style="color:${cColor(z.best)};font-weight:700;font-size:.8rem;">${cName(z.best)}</span>
       <span style="color:#7090b0;font-size:.77rem;">${z.start}% 〜 ${endRate}%</span>
