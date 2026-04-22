@@ -264,7 +264,7 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
 <div class="elec-comp">
   <h2>⚡ 電気代 3社比較（稼働率 0〜100%）<span id="elecKWLabel" style="font-size:.8rem;color:#6090b0;margin-left:12px;font-weight:400;"></span></h2>
   <div id="elecUnitRow" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
-  <div class="elec-chart-wrap"><canvas id="elecChart" style="display:block;width:100%;height:100%;"></canvas></div>
+  <div class="elec-chart-wrap"><canvas id="elecChart" style="display:block;"></canvas></div>
   <div class="elec-cross" id="elecCross"></div>
   <div class="elec-note">
     ・電力会社：基本料金 2,530円/kW/月 ＋ 従量 17.43円/kWh<br>
@@ -695,7 +695,10 @@ function updateElecChart(){
   }
 
   if(elecChart) elecChart.destroy();
-  elecChart=new Chart(document.getElementById('elecChart').getContext('2d'),{
+  const elecCanvas=document.getElementById('elecChart');
+  elecCanvas.width=elecCanvas.parentElement.clientWidth||800;
+  elecCanvas.height=380;
+  elecChart=new Chart(elecCanvas.getContext('2d'),{
     type:'line',
     data:{
       labels:data.map(d=>d.r.toFixed(1)+'%'),
