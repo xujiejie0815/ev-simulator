@@ -653,10 +653,10 @@ function update(){
   document.getElementById('mainTable').innerHTML=rows;
 }
 
-setKW(0); // setKW → updateAll() を呼ぶ
-
 // ========== 電気代3社比較チャート ==========
 let elecChart=null;
+
+setKW(0); // setKW → updateAll() を呼ぶ
 
 function getElecCosts(kw){
   const outPct=getOutputPct();
