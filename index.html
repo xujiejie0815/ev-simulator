@@ -150,11 +150,19 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
   </div>
   <div class="ctrl-group">
     <label>分単価（円/分）</label>
-    <select id="selPrice" onchange="updateAll()"></select>
+    <div class="input-row">
+      <select id="selPrice" onchange="syncPrice()"></select>
+      <input type="number" id="inPrice" value="100" min="1" step="1" style="width:70px" oninput="updateAll()">
+      <span>円/分</span>
+    </div>
   </div>
   <div class="ctrl-group">
     <label>B社 売上シェア</label>
-    <select id="selShare" onchange="updateAll()"></select>
+    <div class="input-row">
+      <select id="selShare" onchange="syncShare()"></select>
+      <input type="number" id="inShare" value="30" min="0" max="100" step="1" style="width:60px" oninput="updateAll()">
+      <span>%</span>
+    </div>
   </div>
   <div class="ctrl-group">
     <label>B社 固定費（円/月）</label>
@@ -289,13 +297,17 @@ let curKW=0, chart=null, chart8=null;
 // dropdowns
 const sp=document.getElementById('selPrice');
 for(let p=50;p<=200;p+=10){const o=document.createElement('option');o.value=p;o.textContent=p+'円/分';if(p===100)o.selected=true;sp.appendChild(o);}
+document.getElementById('inPrice').value=sp.value;
 const ss=document.getElementById('selShare');
 for(let s=0;s<=50;s+=5){const o=document.createElement('option');o.value=s/100;o.textContent=s+'%';if(s===30)o.selected=true;ss.appendChild(o);}
+document.getElementById('inShare').value=Math.round(+ss.value*100);
 const sb=document.getElementById('selBfix');
 [0,10000,30000,50000,100000,200000,300000,500000,1000000,1500000,2000000,3000000].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v===0?'なし':'¥'+v.toLocaleString()+'/月';sb.appendChild(o);});
 let growthFromInput=false;
 function updateAll(){update();update8y();updateBRev();updateElecChart();}
 function syncBfix(){document.getElementById('inBfix').value=document.getElementById('selBfix').value;updateAll();}
+function syncPrice(){document.getElementById('inPrice').value=document.getElementById('selPrice').value;updateAll();}
+function syncShare(){document.getElementById('inShare').value=Math.round(+document.getElementById('selShare').value*100);updateAll();}
 
 function setKW(i){curKW=i;document.querySelectorAll('.kw-btn').forEach((b,j)=>b.classList.toggle('active',j===i));updateAll();}
 
@@ -322,8 +334,8 @@ function getElec(r){
 
 function calcAt(r){
   const ch=CHARGERS[curKW];
-  const price=+document.getElementById('selPrice').value;
-  const share=+document.getElementById('selShare').value;
+  const price=+(document.getElementById('inPrice').value||100);
+  const share=+(document.getElementById('inShare').value||0)/100;
   const bfix=+(document.getElementById('inBfix').value||0)*12; // 月額→年額
   const dep=ch.totalInit/DEP_YEARS;
   const mins=365*24*60*(r/100);
@@ -505,7 +517,7 @@ function update(){
   const ch=CHARGERS[curKW];
   const u=getUnits();
   const dep=ch.totalInit/DEP_YEARS;
-  const share=Math.round(+document.getElementById('selShare').value*100);
+  const share=+(document.getElementById('inShare').value||0);
   const bfixMonthly=+(document.getElementById('inBfix').value||0);
   const bfixAnnual=bfixMonthly*12;
 
@@ -746,7 +758,7 @@ function updateBRev(){
 
     <div class="brev-box">
       <h3>🔄 年間 運用収益（平均稼働率 ${avgRate.toFixed(1)}%）${uLbl}</h3>
-      <div class="brev-row"><span class="label">売上シェア（${Math.round(+document.getElementById('selShare').value*100)}%）${uLbl}</span><span class="val">${fmt(dAvg.bShare*u)}</span></div>
+      <div class="brev-row"><span class="label">売上シェア（${+(document.getElementById('inShare').value||0)}%）${uLbl}</span><span class="val">${fmt(dAvg.bShare*u)}</span></div>
       <div class="brev-row"><span class="label">固定費収入（定額）</span><span class="val">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#507050;margin-left:4px;">/年</span></span></div>
       <div class="brev-row"><span class="label">保守利益${uLbl}</span><span class="val">${fmt(MAINTENANCE_PROFIT*u)}</span></div>
       <div class="brev-row total"><span class="label">年間 運用収益 合計</span><span class="val">${fmt(dAvg.bShare*u+bfixAnnual+MAINTENANCE_PROFIT*u)}</span></div>
