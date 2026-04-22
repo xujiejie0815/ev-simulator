@@ -3,19 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<script>
-(function(){
-  var KEY='ev_sim_auth';
-  var PASS='plugo711simulation';
-  if(sessionStorage.getItem(KEY)===PASS)return;
-  document.addEventListener('DOMContentLoaded',function(){
-    document.body.style.display='none';
-  });
-  var p=prompt('パスワードを入力してください');
-  if(p===PASS){sessionStorage.setItem(KEY,PASS);}
-  else{document.write('<div style="font-family:sans-serif;text-align:center;padding:80px;background:#0f1117;color:#e0e6f0;min-height:100vh;"><h2 style=\"color:#ff6060\">アクセス拒否</h2><p>パスワードが正しくありません。</p><button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:#1a3a70;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:1rem;">再試行</button></div>');document.close();}
-})();
-</script>
 <title>EV充電器 収益シミュレーター</title>
 <script>/**
  * Skipped minification because the original files appears to be already minified.
@@ -209,14 +196,14 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
     <div class="s8-ctrl-item">
       <label>初年度稼働率（スタート）</label>
       <div class="s8-input">
-        <input type="number" id="startRate" value="2" min="0" max="30" step="0.1" style="width:70px" oninput="update8y();updateBRev();update()">
+        <input type="number" id="startRate" value="2" min="0" max="100" step="0.1" style="width:70px" oninput="update8y();updateBRev();update()">
         <span>%</span>
       </div>
     </div>
     <div class="s8-ctrl-item">
       <label>8年間 平均稼働率（目標）</label>
       <div class="s8-input">
-        <input type="number" id="targetAvg" value="15" min="0" max="30" step="0.1" style="width:70px" oninput="update8y();updateBRev();update()">
+        <input type="number" id="targetAvg" value="15" min="0" max="100" step="0.1" style="width:70px" oninput="update8y();updateBRev();update()">
         <span>%</span>
       </div>
     </div>
@@ -258,7 +245,7 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
 
 <!-- 電気代3社比較 -->
 <div class="elec-comp">
-  <h2>⚡ 電気代 3社比較（稼働率 0〜30%）<span id="elecKWLabel" style="font-size:.8rem;color:#6090b0;margin-left:12px;font-weight:400;"></span></h2>
+  <h2>⚡ 電気代 3社比較（稼働率 0〜100%）<span id="elecKWLabel" style="font-size:.8rem;color:#6090b0;margin-left:12px;font-weight:400;"></span></h2>
   <div id="elecUnitRow" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
   <div class="elec-chart-wrap"><canvas id="elecChart"></canvas></div>
   <div class="elec-cross" id="elecCross"></div>
@@ -285,7 +272,7 @@ const MAINTENANCE_COST=100000;  // 保守原価/年
 const MAINTENANCE_PROFIT=140000; // 保守利益/年
 
 const rates=[];
-for(let i=0;i<=300;i++) rates.push(parseFloat((i*0.1).toFixed(1)));
+for(let i=0;i<=1000;i++) rates.push(parseFloat((i*0.1).toFixed(1))); // 0〜100%
 
 // 電力コスト計算式（Image #17の契約内容より）
 // 電力会社: 基本料金2,530円/kW/月 + 従量17.43円/分
@@ -351,7 +338,7 @@ function fmtM(v){return(v<0?'−':'')+(Math.round(Math.abs(v)/10000)).toLocaleSt
 // スタート率と目標平均から複利成長率を二分探索で逆算
 function calcAvgFromGrowth(start, g){
   let sum=0;
-  for(let y=0;y<8;y++) sum+=Math.min(30, start*Math.pow(1+g/100,y));
+  for(let y=0;y<8;y++) sum+=start*Math.pow(1+g/100,y);
   return sum/8;
 }
 function findGrowthRate(start, targetAvg){
@@ -367,16 +354,16 @@ function findGrowthRate(start, targetAvg){
 function update8y(){
   const ch=CHARGERS[curKW];
   const u=getUnits();
-  const startRate=Math.min(30,Math.max(0,parseFloat(document.getElementById('startRate').value)||2));
+  const startRate=Math.max(0,parseFloat(document.getElementById('startRate').value)||2);
   // スタート率と目標平均から成長率を逆算
-  const targetAvg=Math.min(30,Math.max(0,parseFloat(document.getElementById('targetAvg').value)||15));
+  const targetAvg=Math.max(0,parseFloat(document.getElementById('targetAvg').value)||15);
   const growthRate=findGrowthRate(startRate, targetAvg);
   document.getElementById('growthRate').value=growthRate.toFixed(4); // hidden保持
 
-  // 年次別稼働率（複利成長、30%上限）
+  // 年次別稼働率（複利成長）
   const yearRates=[];
   for(let y=1;y<=8;y++){
-    yearRates.push(Math.min(30, startRate*Math.pow(1+growthRate/100,y-1)));
+    yearRates.push(startRate*Math.pow(1+growthRate/100,y-1));
   }
   const avgRate=yearRates.reduce((a,b)=>a+b,0)/8;
 
@@ -423,7 +410,7 @@ function update8y(){
     <div class="s8row sec"><span>── 稼働率推移 ──</span></div>
     ${yearRates.map((r,i)=>`<div class="s8row" style="font-size:.75rem;">
       <span style="color:#6080a0;">${i+1}年目</span>
-      <span style="color:${r>=15?'#90d060':r>=8?'#f0c840':'#a0b8d0'}">${r.toFixed(1)}%${r>=30?' 🔝':''}</span>
+      <span style="color:${r>=15?'#90d060':r>=8?'#f0c840':'#a0b8d0'}">${r.toFixed(1)}%</span>
     </div>`).join('')}
     <div class="s8row sec"><span>── 8年間累計 ──</span></div>
     <div class="s8row"><span>総売上</span><span style="color:#6ab0ff">${fmtM(total8rev)}</span></div>
@@ -435,7 +422,7 @@ function update8y(){
     <div class="s8row sec"><span>── 損益分岐 ──</span></div>
     <div class="${beRate8!==null?'s8row be':'s8row neg'}">
       <span>🎯 損益分岐稼働率（定常）</span>
-      <span>${beRate8!==null?beRate8.toFixed(1)+'%':'30%超'}</span>
+      <span>${beRate8!==null?beRate8.toFixed(1)+'%':'未達'}</span>
     </div>
     <div class="s8row ${beYear&&beYear<=8?'be':''}">
       <span>📆 投資回収年数</span>
@@ -488,7 +475,7 @@ function update8y(){
         },
         y2:{
           position:'right',
-          min:0,max:30,
+          min:0,
           ticks:{color:'#d0b840',callback:v=>v+'%',font:{size:9}},
           grid:{display:false},
         }
@@ -519,7 +506,7 @@ function update(){
     <div class="card"><div class="card-label">年間償却費（÷8年）${uLabel}</div><div class="card-val purple">${fmt(dep*u)}</div></div>
     <div class="card"><div class="card-label">年間固定費（保守+技術士）${uLabel}</div><div class="card-val">${fmt(FIXED*u)}</div></div>
     <div class="card"><div class="card-label">B社固定費/年${uLabel}</div><div class="card-val orange">${fmt(bfixAnnual*u)}<span style="font-size:.7rem;color:#806040;margin-left:4px;">(月${fmt(bfixMonthly*u)})</span></div></div>
-    <div class="card"><div class="card-label">損益分岐（年間・償却後）</div><div class="card-val ${beRate!==null?'green':'red'}">${beRate!==null?beRate.toFixed(1)+'%':'30%超'}</div></div>
+    <div class="card"><div class="card-label">損益分岐（年間・償却後）</div><div class="card-val ${beRate!==null?'green':'red'}">${beRate!==null?beRate.toFixed(1)+'%':'未達'}</div></div>
   `;
 
   const m=u>1?` ×${u}台`:''; // 台数ラベル
@@ -591,7 +578,7 @@ function getElecCosts(kw){
   const effectiveKW=kw*outPct;
   const kwhPerMin=effectiveKW/60;
   const pts=[];
-  for(let i=0;i<=60;i++) pts.push(parseFloat((i*0.5).toFixed(1)));
+  for(let i=0;i<=200;i++) pts.push(parseFloat((i*0.5).toFixed(1))); // 0〜100%
   return pts.map(r=>{
     const mins=(r/100)*365*24*60;
     return{
@@ -705,10 +692,10 @@ function updateBRev(){
   const bfixAnnual=bfixMonthly*12;
 
   // 8年間の年次稼働率（update8yと同じロジック）
-  const startRate=Math.min(30,Math.max(0,parseFloat(document.getElementById('startRate').value)||2));
+  const startRate=Math.max(0,parseFloat(document.getElementById('startRate').value)||2);
   const growthRate=parseFloat(document.getElementById('growthRate').value)||0; // update8yで算出済み
   const yearRates=[];
-  for(let y=1;y<=8;y++) yearRates.push(Math.min(30,startRate*Math.pow(1+growthRate/100,y-1)));
+  for(let y=1;y<=8;y++) yearRates.push(startRate*Math.pow(1+growthRate/100,y-1));
   const avgRate=yearRates.reduce((a,b)=>a+b,0)/8;
 
   // 一時収益（販売時）
