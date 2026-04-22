@@ -487,6 +487,13 @@ function update8y(){
     </div>
   `;
 
+  // 8年間純損益カードを更新
+  const n8Val=document.getElementById('card8yNetVal');
+  if(n8Val){
+    n8Val.textContent=(total8net>=0?'':'−')+'¥'+Math.abs(Math.round(total8net)).toLocaleString();
+    n8Val.className='card-val '+(total8net>=0?'green':'red');
+  }
+
   // 投資回収年数カードを更新
   const byVal=document.getElementById('cardBeYearVal');
   if(byVal){
@@ -565,6 +572,7 @@ function update(){
   const uLabel=u>1?` <span style="font-size:.7rem;color:#6080a0;">（×${u}台）</span>`:'';
 
   document.getElementById('cards').innerHTML=`
+    <div class="card" id="card8yNet"><div class="card-label">8年間純損益${uLabel}</div><div class="card-val" id="card8yNetVal">…</div></div>
     <div class="card"><div class="card-label">総計初期コスト${uLabel}</div><div class="card-val blue">${fmt(ch.totalInit*u)}</div></div>
     <div class="card"><div class="card-label">年間売上（稼働率${avgRate2.toFixed(1)}%）${uLabel}</div><div class="card-val" style="color:#6ab0ff">${fmt(avgRev*u)}</div></div>
     <div class="card"><div class="card-label">年間償却費（÷8年）${uLabel}</div><div class="card-val purple">${fmt(dep*u)}</div></div>
