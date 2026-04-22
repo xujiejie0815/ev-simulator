@@ -287,7 +287,7 @@ for(let p=50;p<=200;p+=10){const o=document.createElement('option');o.value=p;o.
 const ss=document.getElementById('selShare');
 for(let s=0;s<=50;s+=5){const o=document.createElement('option');o.value=s/100;o.textContent=s+'%';if(s===30)o.selected=true;ss.appendChild(o);}
 const sb=document.getElementById('selBfix');
-[0,10000,30000,50000,100000,200000,300000].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v===0?'なし':'¥'+v.toLocaleString()+'/月';sb.appendChild(o);});
+[0,10000,30000,50000,100000,200000,300000,500000,1000000,1500000,2000000,3000000].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v===0?'なし':'¥'+v.toLocaleString()+'/月';sb.appendChild(o);});
 function updateAll(){update();update8y();updateBRev();updateElecChart();}
 function syncBfix(){document.getElementById('inBfix').value=document.getElementById('selBfix').value;updateAll();}
 
@@ -378,23 +378,24 @@ function update8y(){
   const totalInit=ch.totalInit*u;
   const cumData=[];
   let cumCF=0;
-  for(let y=0;y<8;y++){cumCF+=yearData[y].cashFlow*u;cumData.push(cumCF-totalInit);}
+  for(let y=0;y<8;y++){cumCF+=yearData[y].cashFlow*u+yearData[y].bfix*(u-1);cumData.push(cumCF-totalInit);}
 
   // 8年合計（×台数）
   const total8rev =yearData.reduce((a,d)=>a+d.rev,0)*u;
-  const total8b   =yearData.reduce((a,d)=>a+d.bTotal,0)*u;
+  const total8b   =yearData.reduce((a,d)=>a+d.bShare,0)*u + yearData.reduce((a,d)=>a+d.bfix,0);
   const total8ec  =yearData.reduce((a,d)=>a+d.ec,0)*u;
   const total8fix =FIXED*8*u;
   const total8net =cumData[7];
 
-  // 投資回収年（台数は両辺にかかるのでキャンセル → per-unit計算でOK）
+  // 投資回収年（bfixは定額なのでper-unit換算して比較）
   let beYear=null;
   let cumCF2=0;
   for(let y=0;y<8;y++){
     const prev=cumCF2;
-    cumCF2+=yearData[y].cashFlow;
+    const effCF=yearData[y].cashFlow+yearData[y].bfix*(u-1)/u;
+    cumCF2+=effCF;
     if(cumCF2>=ch.totalInit&&beYear===null){
-      const frac=(ch.totalInit-prev)/yearData[y].cashFlow;
+      const frac=(ch.totalInit-prev)/effCF;
       beYear=y+frac;
     }
   }
@@ -402,7 +403,8 @@ function update8y(){
   // 損益分岐稼働率（参考：定常稼働で8年回収できる稼働率）
   let beRate8=null;
   for(let ri=0;ri<rates.length;ri++){
-    if(calcAt(rates[ri]).cashFlow>=ch.totalInit/8){beRate8=rates[ri];break;}
+    const d=calcAt(rates[ri]);
+    if(d.cashFlow+d.bfix*(u-1)/u>=ch.totalInit/8){beRate8=rates[ri];break;}
   }
 
   document.getElementById('sum8y').innerHTML=`
@@ -505,7 +507,7 @@ function update(){
     <div class="card"><div class="card-label">年間売上（稼働率${avgRate2.toFixed(1)}%）${uLabel}</div><div class="card-val" style="color:#6ab0ff">${fmt(avgRev*u)}</div></div>
     <div class="card"><div class="card-label">年間償却費（÷8年）${uLabel}</div><div class="card-val purple">${fmt(dep*u)}</div></div>
     <div class="card"><div class="card-label">年間固定費（保守+技術士）${uLabel}</div><div class="card-val">${fmt(FIXED*u)}</div></div>
-    <div class="card"><div class="card-label">B社固定費/年${uLabel}</div><div class="card-val orange">${fmt(bfixAnnual*u)}<span style="font-size:.7rem;color:#806040;margin-left:4px;">(月${fmt(bfixMonthly*u)})</span></div></div>
+    <div class="card"><div class="card-label">B社固定費/年（台数問わず定額）</div><div class="card-val orange">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#806040;margin-left:4px;">(月${fmt(bfixMonthly)})</span></div></div>
     <div class="card"><div class="card-label">損益分岐（年間・償却後）</div><div class="card-val ${beRate!==null?'green':'red'}">${beRate!==null?beRate.toFixed(1)+'%':'未達'}</div></div>
   `;
 
@@ -530,14 +532,14 @@ function update(){
     <div class="irow sub"><span>固定費合計</span><span>${fmt(FIXED*u)}/年</span></div>
     <div class="irow sec"><span>── B社費用 ──</span></div>
     <div class="irow"><span>売上シェア</span><span>売上×${share}%</span></div>
-    <div class="irow"><span>固定費${m}</span><span>${fmt(bfixAnnual*u)}/年</span></div>
+    <div class="irow"><span>固定費（定額）</span><span>${fmt(bfixAnnual)}/年</span></div>
   `;
 
   if(chart)chart.destroy();
   chart=new Chart(document.getElementById('mainChart').getContext('2d'),{
     type:'line',
     data:{labels:rates.map(r=>r.toFixed(1)+'%'),datasets:[
-      {label:'年間純利益（償却後）',data:rates.map(r=>calcAt(r).net*u),borderColor:'#50d080',backgroundColor:'rgba(80,208,128,.12)',borderWidth:2.5,pointRadius:0,tension:.3,fill:true},
+      {label:'年間純利益（償却後）',data:rates.map(r=>{const d=calcAt(r);return d.net*u+d.bfix*(u-1);}),borderColor:'#50d080',backgroundColor:'rgba(80,208,128,.12)',borderWidth:2.5,pointRadius:0,tension:.3,fill:true},
       {label:'年間売上',data:rates.map(r=>calcAt(r).rev*u),borderColor:'#4a90ff',backgroundColor:'rgba(74,144,255,.05)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,tension:.3},
     ]},
     options:{responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},
@@ -552,17 +554,18 @@ function update(){
   let rows=`<tr><th>稼働率</th><th>稼働分/年</th><th>年間売上</th><th>B社シェア</th><th>B社固定費</th><th>電力費</th><th>固定費</th><th>償却費</th><th>総コスト</th><th>年間純利益</th></tr>`;
   rates.forEach((r,i)=>{
     const d=calcAt(r);
-    rows+=`<tr class="${d.net>=0?'pro':'los'}">
+    const netTotal=d.net*u+d.bfix*(u-1);
+    rows+=`<tr class="${netTotal>=0?'pro':'los'}">
       <td>${r.toFixed(1)}%</td>
       <td>${Math.round(d.mins*u).toLocaleString()}</td>
       <td style="color:#8ab0e0">${fmt(d.rev*u)}</td>
       <td style="color:#d09060">${fmt(d.bShare*u)}</td>
-      <td style="color:#c07040">${fmt(d.bfix*u)}</td>
+      <td style="color:#c07040">${fmt(d.bfix)}</td>
       <td style="color:#7090d0">${fmt(d.ec*u)}</td>
       <td style="color:#909090">${fmt(FIXED*u)}</td>
       <td style="color:#b070f0">${fmt(d.dep*u)}</td>
-      <td style="color:#b09070">${fmt(d.totalCost*u)}</td>
-      <td style="font-weight:700;color:${d.net>=0?'#50d080':'#ff7070'}">${fmt(d.net*u)}</td>
+      <td style="color:#b09070">${fmt(d.totalCost*u-d.bfix*(u-1))}</td>
+      <td style="font-weight:700;color:${netTotal>=0?'#50d080':'#ff7070'}">${fmt(netTotal)}</td>
     </tr>`;
   });
   document.getElementById('mainTable').innerHTML=rows;
@@ -705,7 +708,7 @@ function updateBRev(){
   // 年次別 運用収益（×台数）
   const yearOpProfit=yearRates.map(r=>{
     const d=calcAt(r);
-    return (d.bShare+bfixAnnual+MAINTENANCE_PROFIT)*u;
+    return d.bShare*u + bfixAnnual + MAINTENANCE_PROFIT*u;
   });
   const total8op=yearOpProfit.reduce((a,b)=>a+b,0);
 
@@ -730,16 +733,16 @@ function updateBRev(){
     <div class="brev-box">
       <h3>🔄 年間 運用収益（平均稼働率 ${avgRate.toFixed(1)}%）${uLbl}</h3>
       <div class="brev-row"><span class="label">売上シェア（${Math.round(+document.getElementById('selShare').value*100)}%）${uLbl}</span><span class="val">${fmt(dAvg.bShare*u)}</span></div>
-      <div class="brev-row"><span class="label">固定費収入${uLbl}</span><span class="val">${fmt(bfixAnnual*u)}<span style="font-size:.7rem;color:#507050;margin-left:4px;">/年</span></span></div>
+      <div class="brev-row"><span class="label">固定費収入（定額）</span><span class="val">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#507050;margin-left:4px;">/年</span></span></div>
       <div class="brev-row"><span class="label">保守利益${uLbl}</span><span class="val">${fmt(MAINTENANCE_PROFIT*u)}</span></div>
-      <div class="brev-row total"><span class="label">年間 運用収益 合計</span><span class="val">${fmt((dAvg.bShare+bfixAnnual+MAINTENANCE_PROFIT)*u)}</span></div>
+      <div class="brev-row total"><span class="label">年間 運用収益 合計</span><span class="val">${fmt(dAvg.bShare*u+bfixAnnual+MAINTENANCE_PROFIT*u)}</span></div>
     </div>
 
     <div class="brev-box">
       <h3>📅 8年間 累計収益</h3>
       ${yearRates.map((r,i)=>{
         const d=calcAt(r);
-        const yop=d.bShare+bfixAnnual+MAINTENANCE_PROFIT;
+        const yop=d.bShare*u+bfixAnnual+MAINTENANCE_PROFIT*u;
         return`<div class="brev-row" style="font-size:.75rem;">
           <span class="label">${i+1}年目（${r.toFixed(1)}%）</span>
           <span class="val">${fmtM(yop)}</span>
