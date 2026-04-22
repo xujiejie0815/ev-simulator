@@ -241,21 +241,21 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
     <div class="s8-ctrl-item">
       <label>初年度稼働率（スタート）</label>
       <div class="s8-input">
-        <input type="number" id="startRate" value="2" min="0" max="100" step="0.1" style="width:70px" oninput="update8y();updateBRev();update()">
+        <input type="number" id="startRate" value="2" min="0" max="100" step="0.1" style="width:70px" oninput="updateAll()">
         <span>%</span>
       </div>
     </div>
     <div class="s8-ctrl-item">
       <label>8年間 平均稼働率（目標）</label>
       <div class="s8-input">
-        <input type="number" id="targetAvg" value="15" min="0" max="100" step="0.1" style="width:70px" oninput="update8y();updateBRev();update()">
+        <input type="number" id="targetAvg" value="15" min="0" max="100" step="0.1" style="width:70px" oninput="updateAll()">
         <span>%</span>
       </div>
     </div>
     <div class="s8-ctrl-item">
       <label>年間成長率</label>
       <div class="s8-input">
-        <input type="number" id="growthRateInput" value="8.25" step="0.01" style="width:70px" oninput="growthFromInput=true;update8y();updateBRev();update()">
+        <input type="number" id="growthRateInput" value="8.25" step="0.01" style="width:70px" oninput="growthFromInput=true;updateAll()">
         <span>%/年</span>
       </div>
     </div>
@@ -470,8 +470,11 @@ function update8y(){
     if(d.cashFlow+d.bfix*(u-1)/u>=ch.totalInit/8){beRate8=rates[ri];break;}
   }
   // 年間損益分岐稼働率（単年黒字になる最低稼働率）
+  // 年間損益分岐稼働率 = 減価償却なしの操業CFが黒字になる稼働率（beRate8より低い値になる）
   let beRateAnnual=null;
-  for(let ri=0;ri<rates.length;ri++){if(calcAt(rates[ri]).net>0){beRateAnnual=rates[ri];break;}}
+  for(let ri=0;ri<rates.length;ri++){
+    if(calcAt(rates[ri]).cashFlow>0){beRateAnnual=rates[ri];break;}
+  }
 
   document.getElementById('sum8y').innerHTML=`
     <h3>💰 8年間収益サマリー（平均稼働率 ${avgRate.toFixed(1)}%）</h3>
@@ -489,7 +492,7 @@ function update8y(){
     <div class="${total8net>=0?'s8row pos':'s8row neg'}"><span>8年間純損益</span><span>${fmtM(total8net)}</span></div>
     <div class="s8row sec"><span>── 損益分岐 ──</span></div>
     <div class="${beRateAnnual!==null?'s8row be':'s8row neg'}">
-      <span>📊 年間損益分岐稼働率</span>
+      <span>📊 年間損益分岐稼働率（償却前）</span>
       <span>${beRateAnnual!==null?beRateAnnual.toFixed(1)+'%':'未達'}</span>
     </div>
     <div class="s8row">
