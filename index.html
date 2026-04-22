@@ -208,8 +208,11 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
       </div>
     </div>
     <div class="s8-ctrl-item">
-      <label>算出された年間成長率</label>
-      <div class="val-badge" id="avgBadge" style="font-size:.85rem;min-width:90px;">--%/年</div>
+      <label>年間成長率</label>
+      <div class="s8-input">
+        <input type="number" id="growthRateInput" value="8.25" step="0.01" style="width:70px" oninput="growthFromInput=true;update8y();updateBRev();update()">
+        <span>%/年</span>
+      </div>
     </div>
   </div>
   <input type="hidden" id="avgInput" value="15">
@@ -288,6 +291,7 @@ const ss=document.getElementById('selShare');
 for(let s=0;s<=50;s+=5){const o=document.createElement('option');o.value=s/100;o.textContent=s+'%';if(s===30)o.selected=true;ss.appendChild(o);}
 const sb=document.getElementById('selBfix');
 [0,10000,30000,50000,100000,200000,300000,500000,1000000,1500000,2000000,3000000].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v===0?'なし':'¥'+v.toLocaleString()+'/月';sb.appendChild(o);});
+let growthFromInput=false;
 function updateAll(){update();update8y();updateBRev();updateElecChart();}
 function syncBfix(){document.getElementById('inBfix').value=document.getElementById('selBfix').value;updateAll();}
 
@@ -355,9 +359,17 @@ function update8y(){
   const ch=CHARGERS[curKW];
   const u=getUnits();
   const startRate=Math.max(0,parseFloat(document.getElementById('startRate').value)||2);
-  // スタート率と目標平均から成長率を逆算
-  const targetAvg=Math.max(0,parseFloat(document.getElementById('targetAvg').value)||15);
-  const growthRate=findGrowthRate(startRate, targetAvg);
+  // 成長率手入力 or 平均稼働率から逆算
+  const fromGrowth=growthFromInput;
+  growthFromInput=false;
+  let growthRate;
+  if(fromGrowth){
+    growthRate=parseFloat(document.getElementById('growthRateInput').value)||0;
+  } else {
+    const targetAvg=Math.max(0,parseFloat(document.getElementById('targetAvg').value)||15);
+    growthRate=findGrowthRate(startRate, targetAvg);
+    document.getElementById('growthRateInput').value=growthRate.toFixed(2);
+  }
   document.getElementById('growthRate').value=growthRate.toFixed(4); // hidden保持
 
   // 年次別稼働率（複利成長）
@@ -367,9 +379,9 @@ function update8y(){
   }
   const avgRate=yearRates.reduce((a,b)=>a+b,0)/8;
 
-  // avgInputを更新（cardsセクション等で参照）
+  // avgInputを更新（cardsセクション等で参照）、成長率手入力時はtargetAvgも更新
   document.getElementById('avgInput').value=avgRate.toFixed(2);
-  document.getElementById('avgBadge').textContent=(growthRate>=0?'+':'')+growthRate.toFixed(2)+'%/年';
+  if(fromGrowth) document.getElementById('targetAvg').value=avgRate.toFixed(2);
 
   // 年次別収益計算
   const yearData=yearRates.map(r=>calcAt(r));
