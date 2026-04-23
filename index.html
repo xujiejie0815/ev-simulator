@@ -204,10 +204,10 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
     </div>
   </div>
   <div class="ctrl-group">
-    <label>B社 固定費（円/月）</label>
+    <label>B社 保守費（円/月）</label>
     <div class="input-row">
       <select id="selBfix" onchange="syncBfix()"></select>
-      <input type="number" id="inBfix" value="0" step="1000" min="0" onchange="updateAll()">
+      <input type="number" id="inBfix" value="20000" step="1000" min="0" onchange="updateAll()">
       <span>円/月</span>
     </div>
   </div>
@@ -228,9 +228,9 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
     </div>
   </div>
   <div class="ctrl-group">
-    <label>年間保守費用</label>
+    <label>高圧電気技術者費/年</label>
     <div class="input-row">
-      <input type="number" id="inFixed" value="340000" step="10000" min="0" style="width:90px" oninput="updateAll()">
+      <input type="number" id="inFixed" value="100000" step="10000" min="0" style="width:90px" oninput="updateAll()">
       <span>円/年</span>
     </div>
   </div>
@@ -348,9 +348,9 @@ const CHARGERS=[
   {label:'150kW 1口',kw:150,ports:1, price:7350075,cost:5444500,profit:1905575,subsBody:5000000,bodyInit:2350075,addon:400000,work:7000000,subsWork:5000000,workInit:2000000,totalInit:4750075},
   {label:'180kW 2口',kw:180,ports:2, price:9150030,cost:6777800,profit:2372230,subsBody:7000000,bodyInit:2150030,addon:400000,work:7000000,subsWork:5000000,workInit:2000000,totalInit:4550030},
 ];
-function getFixed(){return+(document.getElementById('inFixed').value||340000);}
+function getFixed(){return+(document.getElementById('inFixed').value||100000);} // 高圧電気技術者費/年
 function getMaxRate(){return Math.min(100,Math.max(1,+(document.getElementById('inMaxRate').value||30)));}
-const FIXED=340000; // 後方互換用（getFixed()を使用）
+const FIXED=100000; // 後方互換用（高圧電気技術者費）
 const DEP_YEARS=8;
 const ADDON_PROFIT=140000;   // 付帯設備利益（全kW共通）
 const MAINTENANCE_SELL=240000;  // 保守売値/年
@@ -414,18 +414,17 @@ function calcAt(r){
   const ch=CHARGERS[curKW];
   const price=+(document.getElementById('inPrice').value||100);
   const share=+(document.getElementById('inShare').value||0)/100;
-  const bfix=+(document.getElementById('inBfix').value||0)*12; // 月額→年額
+  const bfix=+(document.getElementById('inBfix').value||0)*12; // 保守売値（月額→年額）B社へ支払い
   const dep=ch.totalInit/DEP_YEARS;
   const mins=365*24*60*(r/100);
   const rev=mins*price;
-  const bShare=rev*share;
-  const payFee=rev*0.03; // 決済手数料 3%（B社原価）
-  const bTotal=bShare+bfix+payFee;
+  const bShare=rev*share;                 // B社シェア（A社費用）
+  const payFee=rev*0.03;                  // 決済手数料3%（B社原価のみ・A社は負担しない）
+  const bTotal=bShare+bfix;              // A社がB社へ支払う合計（シェア＋保守費）
   const {cost:ec,name:pwName}=getElec(r);
-  const totalCost=bTotal+ec+getFixed()+dep;
+  const totalCost=bTotal+ec+getFixed()+dep; // A社総コスト（高圧電技=getFixed()）
   const net=rev-totalCost;
-  // net before depreciation (cash flow)
-  const cashFlow=rev-bTotal-ec-getFixed();
+  const cashFlow=rev-bTotal-ec-getFixed();  // キャッシュフロー（償却前）
   return{mins,rev,bShare,bfix,payFee,bTotal,ec,pwName,dep,totalCost,net,cashFlow};
 }
 
@@ -571,8 +570,9 @@ function update8y(){
   // N年間合計
   const totalInvest=yearUnits.reduce((a,u,y)=>{const p=y>0?yearUnits[y-1]:0;return a+Math.max(0,u-p)*ch.totalInit;},0);
   const totalNrev =yearData.reduce((a,d,y)=>a+d.rev*yearUnits[y],0);
-  const totalNb   =yearData.reduce((a,d,y)=>a+d.bShare*yearUnits[y]+d.payFee*yearUnits[y]+d.bfix,0);
-  const totalNpay =yearData.reduce((a,d,y)=>a+d.payFee*yearUnits[y],0);
+  // A社がB社に支払う合計（シェア＋保守費）※決済手数料はB社原価・A社負担なし
+  const totalNb   =yearData.reduce((a,d,y)=>a+d.bShare*yearUnits[y]+d.bfix,0);
+  const totalNpay =yearData.reduce((a,d,y)=>a+d.payFee*yearUnits[y],0); // B社原価参考用
   const totalNec  =yearData.reduce((a,d,y)=>a+d.ec*yearUnits[y],0);
   const totalNfix =yearData.reduce((a,d,y)=>a+getFixed()*yearUnits[y],0);
   const totalNnet=cumData[totalYears-1];
@@ -635,8 +635,7 @@ function update8y(){
     </div>`).join('')}
     <div class="s8row sec"><span>── ${totalYears}年間累計 ──</span></div>
     <div class="s8row"><span>総売上</span><span style="color:#6ab0ff">${fmtM(totalNrev)}</span></div>
-    <div class="s8row red"><span>B社費用合計</span><span>${fmtM(totalNb)}</span></div>
-    <div class="s8row" style="color:#c08050;padding-left:12px;font-size:.75rem;"><span>　うち 決済手数料(3%)</span><span>${fmtM(totalNpay)}</span></div>
+    <div class="s8row red"><span>B社への支払（シェア＋保守）</span><span>${fmtM(totalNb)}</span></div>
     <div class="s8row" style="color:#8090c0"><span>電力費</span><span>${fmtM(totalNec)}</span></div>
     <div class="s8row" style="color:#909090"><span>固定費</span><span>${fmtM(totalNfix)}</span></div>
     <div class="s8row pur"><span>初期投資合計</span><span>${fmtM(totalInvest)}</span></div>
@@ -752,8 +751,8 @@ function update(){
     <div class="card"><div class="card-label">1年目 初期コスト${uLabel}</div><div class="card-val blue">${fmt(ch.totalInit*u)}</div></div>
     <div class="card"><div class="card-label">年間売上（稼働率${avgRate2.toFixed(1)}%）${uLabel}</div><div class="card-val" style="color:#6ab0ff">${fmt(avgRev*u)}</div></div>
     <div class="card"><div class="card-label">年間償却費（÷${DEP_YEARS}年）${uLabel}</div><div class="card-val purple">${fmt(dep*u)}</div></div>
-    <div class="card"><div class="card-label">年間固定費（保守+技術士）${uLabel}</div><div class="card-val">${fmt(getFixed()*u)}</div></div>
-    <div class="card"><div class="card-label">B社固定費/年（台数問わず定額）</div><div class="card-val orange">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#806040;margin-left:4px;">(月${fmt(bfixMonthly)})</span></div></div>
+    <div class="card"><div class="card-label">高圧電気技術者費/年${uLabel}</div><div class="card-val">${fmt(getFixed()*u)}</div></div>
+    <div class="card"><div class="card-label">B社 保守費/年/台（A社→B社）</div><div class="card-val orange">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#806040;margin-left:4px;">(月${fmt(bfixMonthly)})</span></div></div>
     <div class="card"><div class="card-label">損益分岐（年間・償却後）</div><div class="card-val ${beRate!==null?'green':'red'}">${beRate!==null?beRate.toFixed(1)+'%':'未達'}</div></div>
     <div class="card" id="cardBeYear"><div class="card-label">投資回収年数（${ny}年試算）</div><div class="card-val" id="cardBeYearVal">…</div></div>
   `;
@@ -773,14 +772,12 @@ function update(){
     ${u>1?`<div class="irow sec"><span>── ${u}台合計 ──</span></div>`:''}
     <div class="irow tot"><span>🔑 総計初期コスト${m}</span><span>${fmt(ch.totalInit*u)}</span></div>
     <div class="irow dep"><span>📅 年間償却（÷8年）${m}</span><span>${fmt(dep*u)}/年</span></div>
-    <div class="irow sec"><span>── 年間固定費${m} ──</span></div>
-    <div class="irow"><span>充電器保守管理費</span><span>${fmt(240000*u)}/年</span></div>
-    <div class="irow"><span>主任電気技術士</span><span>${fmt(100000*u)}/年</span></div>
-    <div class="irow sub"><span>固定費合計</span><span>${fmt(getFixed()*u)}/年</span></div>
-    <div class="irow sec"><span>── B社費用 ──</span></div>
-    <div class="irow"><span>売上シェア</span><span>売上×${share}%</span></div>
-    <div class="irow"><span>決済手数料</span><span>売上×3%</span></div>
-    <div class="irow"><span>固定費（定額）</span><span>${fmt(bfixAnnual)}/年</span></div>
+    <div class="irow sec"><span>── A社 年間費用${m} ──</span></div>
+    <div class="irow"><span>高圧電気技術者費</span><span>${fmt(getFixed()*u)}/年</span></div>
+    <div class="irow sec"><span>── A社→B社 支払 ──</span></div>
+    <div class="irow"><span>売上シェア（%）</span><span>売上×${share}%</span></div>
+    <div class="irow"><span>保守費（B社へ）</span><span>${fmt(bfixAnnual)}/年（月${fmt(bfixMonthly)}）</span></div>
+    <div class="irow" style="font-size:.75rem;color:#6080a0;padding-left:12px;"><span>※決済手数料3%はB社原価（A社負担なし）</span><span></span></div>
   `;
 
   const maxR=getMaxRate();
@@ -802,7 +799,7 @@ function update(){
     }
   });
 
-  let rows=`<tr><th>稼働率</th><th>稼働分/年</th><th>年間売上</th><th>B社シェア</th><th>決済手数料3%</th><th>B社固定費</th><th>電力費</th><th>固定費</th><th>償却費</th><th>総コスト</th><th>年間純利益</th></tr>`;
+  let rows=`<tr><th>稼働率</th><th>稼働分/年</th><th>年間売上</th><th>B社シェア</th><th>B社保守費</th><th>電力費</th><th>高圧電技費</th><th>償却費</th><th>総コスト</th><th>年間純利益</th></tr>`;
   visRates.forEach((r,i)=>{
     const d=calcAt(r);
     const netTotal=d.net*u+d.bfix*(u-1);
@@ -811,8 +808,7 @@ function update(){
       <td>${Math.round(d.mins*u).toLocaleString()}</td>
       <td style="color:#8ab0e0">${fmt(d.rev*u)}</td>
       <td style="color:#d09060">${fmt(d.bShare*u)}</td>
-      <td style="color:#c08050">${fmt(d.payFee*u)}</td>
-      <td style="color:#c07040">${fmt(d.bfix)}</td>
+      <td style="color:#c07040">${fmt(d.bfix*u)}</td>
       <td style="color:#7090d0">${fmt(d.ec*u)}</td>
       <td style="color:#909090">${fmt(getFixed()*u)}</td>
       <td style="color:#b070f0">${fmt(d.dep*u)}</td>
@@ -1010,75 +1006,94 @@ function updateBRev(){
   const totalYears=getTotalYears();
   const yearUnits=getYearUnits(totalYears);
   const bfixMonthly=+(document.getElementById('inBfix').value||0);
-  const bfixAnnual=bfixMonthly*12;
+  const bfixAnnual=bfixMonthly*12; // 保守売値/年/台
 
-  // 年次稼働率（update8yで算出済み成長率を使用）
+  // 年次稼働率
   const startRate=Math.max(0,parseFloat(document.getElementById('startRate').value)||2);
   const growthRate=parseFloat(document.getElementById('growthRate').value)||0;
   const yearRates=[];
   for(let y=1;y<=totalYears;y++) yearRates.push(startRate*Math.pow(1+growthRate/100,y-1));
   const avgRate=yearRates.reduce((a,b)=>a+b,0)/totalYears;
+  const share=+(document.getElementById('inShare').value||0)/100;
 
-  // 初期利益（台数増加時に都度計上）
-  const totalInitProfit=yearUnits.reduce((a,u,y)=>{
-    const p=y>0?yearUnits[y-1]:0;
-    const added=Math.max(0,u-p);
-    return a+(ch.profit+ADDON_PROFIT)*added;
-  },0);
-  const u1=yearUnits[0];
-  const uLbl=u1>1?` ×${u1}台`:'';
+  // 新規台数（充電器販売対象）
+  let totalNewUnits=0;
+  for(let y=0;y<totalYears;y++) totalNewUnits+=Math.max(0,yearUnits[y]-(y>0?yearUnits[y-1]:0));
+  const totalUY=yearUnits.reduce((a,b)=>a+b,0); // 延べ台数×年
 
-  // 年次別 運用収益（各年の台数を反映）
-  const yearOpProfit=yearRates.map((r,y)=>{
-    const u=yearUnits[y];
-    const d=calcAt(r);
-    return d.bShare*u + bfixAnnual + MAINTENANCE_PROFIT*u;
-  });
-  const totalNop=yearOpProfit.reduce((a,b)=>a+b,0);
-  const totalN=totalInitProfit+totalNop;
+  // ==== B社売上 ====
+  // ① 充電器販売額（本体＋付帯設備）× 新規台数
+  const bRevCh=(ch.price+ch.addon)*totalNewUnits;
+  // ② 運用シェア（%）8年累計
+  let bRevShareTotal=0;
+  yearRates.forEach((r,y)=>{ bRevShareTotal+=calcAt(r).bShare*yearUnits[y]; });
+  // ③ 保守収入（24万/年/台）
+  const bRevMaint=bfixAnnual*totalUY;
+  const bRevTotal=bRevCh+bRevShareTotal+bRevMaint;
+
+  // ==== B社原価 ====
+  // ① 充電器原価（本体＋付帯設備原価）× 新規台数
+  const ADDON_COST=ch.addon-ADDON_PROFIT; // 付帯設備原価
+  const bCostCh=(ch.cost+ADDON_COST)*totalNewUnits;
+  // ② 保守原価（10万/年/台）
+  const bCostMaint=MAINTENANCE_COST*totalUY;
+  // ③ 決済手数料（売上×3%）
+  let bCostPayFee=0;
+  yearRates.forEach((r,y)=>{ bCostPayFee+=calcAt(r).payFee*yearUnits[y]; });
+  const bCostTotal=bCostCh+bCostMaint+bCostPayFee;
+
+  // ==== B社利益 ====
+  const bProfitCh=bRevCh-bCostCh;
+  const bProfitOps=(bRevShareTotal+bRevMaint)-(bCostMaint+bCostPayFee);
+  const bProfitTotal=bRevTotal-bCostTotal;
 
   const dAvg=calcAt(avgRate);
-  const uAvg=Math.round(yearUnits.reduce((a,b)=>a+b,0)/totalYears);
+  const uAvg=Math.round(totalUY/totalYears)||1;
 
   const sec=document.getElementById('bRevSection');
   sec.innerHTML=`
-  <h2>💼 B社 収益試算（${totalYears}年間）</h2>
+  <h2>💼 B社 損益試算（${totalYears}年間）</h2>
   <div class="brev-grid">
 
     <div class="brev-box">
-      <h3>📦 初期利益（台数追加時に計上）</h3>
-      <div class="brev-row"><span class="label">充電器+付帯利益 × 追加台数</span><span class="val">${fmt(totalInitProfit)}</span></div>
-      <div class="brev-row total"><span class="label">初期利益 合計</span><span class="val">${fmt(totalInitProfit)}</span></div>
+      <h3>📊 B社 売上（${totalYears}年間累計）</h3>
+      <div class="brev-row"><span class="label">① 充電器販売額（本体＋付帯）×${totalNewUnits}台</span><span class="val">${fmt(bRevCh)}</span></div>
+      <div class="brev-row"><span class="label">② 運用シェア（${+(document.getElementById('inShare').value||0)}%）累計</span><span class="val">${fmt(bRevShareTotal)}</span></div>
+      <div class="brev-row"><span class="label">③ 保守収入（${fmtM(bfixAnnual)}/年/台）</span><span class="val">${fmt(bRevMaint)}</span></div>
+      <div class="brev-row total"><span class="label">B社売上 合計</span><span class="val">${fmt(bRevTotal)}</span></div>
     </div>
 
     <div class="brev-box">
-      <h3>🔄 年間 運用収益（平均稼働率 ${avgRate.toFixed(1)}%・平均${uAvg}台）</h3>
-      <div class="brev-row"><span class="label">売上シェア（${+(document.getElementById('inShare').value||0)}%）×平均台数</span><span class="val">${fmt(dAvg.bShare*uAvg)}</span></div>
-      <div class="brev-row"><span class="label">固定費収入（定額）</span><span class="val">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#507050;margin-left:4px;">/年</span></span></div>
-      <div class="brev-row"><span class="label">保守利益 × 平均台数</span><span class="val">${fmt(MAINTENANCE_PROFIT*uAvg)}</span></div>
-      <div class="brev-row total"><span class="label">年間 運用収益 合計（平均年）</span><span class="val">${fmt(dAvg.bShare*uAvg+bfixAnnual+MAINTENANCE_PROFIT*uAvg)}</span></div>
+      <h3>💸 B社 原価（${totalYears}年間累計）</h3>
+      <div class="brev-row"><span class="label">① 充電器原価（本体＋付帯）×${totalNewUnits}台</span><span class="val" style="color:#ff7070">▲${fmt(bCostCh)}</span></div>
+      <div class="brev-row"><span class="label">② 保守原価（10万/年/台）</span><span class="val" style="color:#ff7070">▲${fmt(bCostMaint)}</span></div>
+      <div class="brev-row"><span class="label">③ 決済手数料（売上×3%）</span><span class="val" style="color:#ff7070">▲${fmt(bCostPayFee)}</span></div>
+      <div class="brev-row total"><span class="label">B社原価 合計</span><span class="val" style="color:#ff7070">▲${fmt(bCostTotal)}</span></div>
     </div>
 
     <div class="brev-box">
-      <h3>📅 ${totalYears}年間 累計収益</h3>
-      ${yearRates.map((r,i)=>{
-        const u=yearUnits[i];
-        const d=calcAt(r);
-        const yop=d.bShare*u+bfixAnnual+MAINTENANCE_PROFIT*u;
-        return`<div class="brev-row" style="font-size:.75rem;">
-          <span class="label">${i+1}年目（${r.toFixed(1)}%・${u}台）</span>
-          <span class="val">${fmtM(yop)}</span>
-        </div>`;
-      }).join('')}
-      <div class="brev-row total" style="margin-top:4px;"><span class="label">${totalYears}年間 運用収益</span><span class="val">${fmt(totalNop)}</span></div>
-      <div class="brev-row grand"><span class="label">🏆 ${totalYears}年間 総収益（初期含む）</span><span class="val">${fmt(totalN)}</span></div>
+      <h3>🏆 B社 利益（${totalYears}年間累計）</h3>
+      <div class="brev-row"><span class="label">充電器販売利益（本体＋付帯）</span><span class="val ${bProfitCh>=0?'':''}"; style="color:${bProfitCh>=0?'#50d080':'#ff7070'}">${fmt(bProfitCh)}</span></div>
+      <div class="brev-row"><span class="label">運用利益（シェア＋保守−決済）</span><span class="val" style="color:${bProfitOps>=0?'#50d080':'#ff7070'}">${fmt(bProfitOps)}</span></div>
+      <div class="brev-row grand"><span class="label">🏆 B社 ${totalYears}年間 総利益</span><span class="val" style="font-size:1.1rem;color:${bProfitTotal>=0?'#50d080':'#ff7070'}">${fmt(bProfitTotal)}</span></div>
+      <div style="margin-top:10px;font-size:.72rem;color:#506070;line-height:1.8;">
+        年次別利益:<br>
+        ${yearRates.map((r,i)=>{
+          const u=yearUnits[i];
+          const d=calcAt(r);
+          const added=Math.max(0,u-(i>0?yearUnits[i-1]:0));
+          const initP=(ch.profit+ADDON_PROFIT)*added;
+          const opsP=d.bShare*u+bfixAnnual*u-MAINTENANCE_COST*u-d.payFee*u;
+          return`<span style="color:#60a070">${i+1}年: ${fmtM(initP+opsP)}</span>`;
+        }).join('　')}
+      </div>
     </div>
 
   </div>
   <div class="brev-note">
-    ・初期利益：充電器本体（売値−原価）＋付帯設備利益 ¥140,000（台数追加時に計上）<br>
-    ・保守：売値 ¥240,000/年 − 原価 ¥100,000/年 ＝ 利益 ¥140,000/年<br>
-    ・運用収益は年次稼働率と各年の設置台数を使用
+    ・B社売上 = 充電器販売額（本体＋付帯）＋ 運用シェア（${+(document.getElementById('inShare').value||0)}%）＋ 保守収入（${fmtM(bfixAnnual)}/年/台）<br>
+    ・B社原価 = 充電器原価（本体＋付帯）＋ 保守原価（10万/年/台）＋ 決済手数料（3%）<br>
+    ・決済手数料はB社が負担（A社は負担しない）
   </div>
   `;
 }
