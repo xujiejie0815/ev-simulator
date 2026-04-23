@@ -62,7 +62,15 @@ input[type=number]:focus{border-color:#f0a040;}
 /* ===== 8年間セクション ===== */
 .section-8y{background:#0d1620;border:1px solid #2a4060;border-radius:13px;padding:18px;margin-bottom:14px;}
 .section-8y h2{font-size:1rem;color:#f0d060;margin-bottom:14px;letter-spacing:1px;display:flex;align-items:center;gap:8px;}
-.s8-ctrl{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px;}
+.s8-ctrl{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:12px;}
+/* 年次台数グリッド */
+.year-units-row{background:#0a1220;border:1px solid #1e3050;border-radius:8px;padding:10px 14px;margin-bottom:14px;}
+.year-units-row .yur-label{font-size:.68rem;color:#6090b0;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+.year-units-grid{display:flex;flex-wrap:wrap;gap:6px;}
+.year-unit-item{display:flex;align-items:center;gap:3px;background:#0d1828;border:1px solid #1a3050;border-radius:6px;padding:4px 8px;}
+.year-unit-item .yulabel{font-size:.7rem;color:#5070a0;min-width:22px;}
+.year-unit-item input{width:42px;background:#060e1a;border:1px solid #1a3050;border-radius:4px;color:#c0d0e8;font-size:.75rem;padding:2px 4px;text-align:center;}
+.year-unit-item span{font-size:.7rem;color:#4060a0;}
 .s8-ctrl-item{display:flex;flex-direction:column;gap:5px;}
 .s8-ctrl-item label{font-size:.68rem;color:#7090a0;letter-spacing:1px;text-transform:uppercase;}
 .s8-input{display:flex;align-items:center;gap:6px;}
@@ -216,13 +224,8 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
       <span>円/年</span>
     </div>
   </div>
-  <div class="ctrl-group" style="border:1.5px solid #3a5070;">
-    <label style="color:#f0d060;">設置台数</label>
-    <div class="input-row">
-      <input type="number" id="inUnits" value="1" min="1" max="20" step="1" style="width:60px;" oninput="updateAll()">
-      <span>台</span>
-    </div>
-  </div>
+  <!-- inUnits は年次台数グリッド(unitY1〜)に置き換え済み。互換用hidden保持 -->
+  <input type="hidden" id="inUnits" value="1">
   <div class="ctrl-group">
     <label>稼働率 上限</label>
     <div class="input-row">
@@ -236,7 +239,7 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
 
 <!-- ===== 8年間事業試算 ===== -->
 <div class="section-8y">
-  <h2>📅 8年間 事業損益試算</h2>
+  <h2 id="sec8yTitle">📅 事業損益試算</h2>
   <div class="s8-ctrl">
     <div class="s8-ctrl-item">
       <label>初年度稼働率（スタート）</label>
@@ -246,7 +249,7 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
       </div>
     </div>
     <div class="s8-ctrl-item">
-      <label>8年間 平均稼働率（目標）</label>
+      <label id="avgLabel">平均稼働率（目標）</label>
       <div class="s8-input">
         <input type="number" id="targetAvg" value="15" min="0" max="100" step="0.1" style="width:70px" oninput="updateAll()">
         <span>%</span>
@@ -259,12 +262,24 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
         <span>%/年</span>
       </div>
     </div>
+    <div class="s8-ctrl-item" style="border:1.5px solid #3a5070;border-radius:7px;padding:6px 10px;">
+      <label style="color:#f0d060;">試算年数</label>
+      <div class="s8-input">
+        <input type="number" id="inTotalYears" value="8" min="1" max="30" step="1" style="width:55px" oninput="changeTotalYears()">
+        <span>年</span>
+      </div>
+    </div>
+  </div>
+  <!-- 年次台数グリッド -->
+  <div class="year-units-row">
+    <div class="yur-label">年次別 設置台数（何年目に何台稼働させるか ／ 1年目はメインチャート・カード表示にも反映）</div>
+    <div class="year-units-grid" id="yearUnitsGrid"></div>
   </div>
   <input type="hidden" id="avgInput" value="15">
   <input type="hidden" id="growthRate" value="8.25">
   <div class="s8-grid">
     <div class="s8-chart-box">
-      <h3>📊 年次累積純利益（初期投資込み）</h3>
+      <h3 id="chart8yTitle">📊 年次累積損益（初期投資込み）</h3>
       <canvas id="chart8y"></canvas>
     </div>
     <div class="s8-summary" id="sum8y"></div>
@@ -349,7 +364,11 @@ function syncShare(){document.getElementById('inShare').value=Math.round(+docume
 function setKW(i){curKW=i;document.querySelectorAll('.kw-btn').forEach((b,j)=>b.classList.toggle('active',j===i));updateAll();}
 
 function getOutputPct(){return Math.min(100,Math.max(1,+(document.getElementById('inOutput').value||100)))/100;}
-function getUnits(){return Math.max(1,Math.round(+(document.getElementById('inUnits').value||1)));}
+// 設置台数は年次台数グリッドの1年目を参照（メインチャート・カード表示用）
+function getUnits(){
+  const el=document.getElementById('unitY1');
+  return el?Math.max(1,Math.round(+(el.value)||1)):1;
+}
 
 function getElec(r){
   const pw=+document.getElementById('selPower').value;
@@ -390,27 +409,62 @@ function calcAt(r){
 function fmt(v){return(v<0?'−¥':'¥')+Math.abs(Math.round(v)).toLocaleString();}
 function fmtM(v){return(v<0?'−':'')+(Math.round(Math.abs(v)/10000)).toLocaleString()+'万円';}
 
-// スタート率と目標平均から複利成長率を二分探索で逆算
-function calcAvgFromGrowth(start, g){
-  let sum=0;
-  for(let y=0;y<8;y++) sum+=start*Math.pow(1+g/100,y);
-  return sum/8;
+// ===== 年次試算ヘルパー =====
+function getTotalYears(){return Math.min(30,Math.max(1,Math.round(+(document.getElementById('inTotalYears').value)||8)));}
+
+function getYearUnits(ny){
+  const arr=[];
+  for(let y=1;y<=ny;y++){
+    const el=document.getElementById('unitY'+y);
+    arr.push(el?Math.max(1,Math.round(+(el.value)||1)):1);
+  }
+  return arr;
 }
-function findGrowthRate(start, targetAvg){
-  if(Math.abs(calcAvgFromGrowth(start,0)-targetAvg)<0.001) return 0;
+
+function renderYearUnitsGrid(ny,prevUnits){
+  const grid=document.getElementById('yearUnitsGrid');
+  if(!grid) return;
+  let html='';
+  for(let y=1;y<=ny;y++){
+    const v=prevUnits&&prevUnits[y-1]!=null?prevUnits[y-1]:1;
+    html+=`<div class="year-unit-item"><span class="yulabel">${y}年</span><input type="number" id="unitY${y}" value="${v}" min="1" max="99" step="1" oninput="updateAll()"><span>台</span></div>`;
+  }
+  grid.innerHTML=html;
+}
+
+function changeTotalYears(){
+  // 既存値を退避してグリッド再生成
+  const oldNy=document.querySelectorAll('[id^="unitY"]').length;
+  const oldUnits=[];
+  for(let y=1;y<=oldNy;y++){const el=document.getElementById('unitY'+y);oldUnits.push(el?Math.max(1,+(el.value)||1):1);}
+  renderYearUnitsGrid(getTotalYears(),oldUnits);
+  updateAll();
+}
+
+// スタート率と目標平均から複利成長率を二分探索で逆算（ny: 試算年数）
+function calcAvgFromGrowth(start,g,ny){
+  const n=ny||8;
+  let sum=0;
+  for(let y=0;y<n;y++) sum+=start*Math.pow(1+g/100,y);
+  return sum/n;
+}
+function findGrowthRate(start,targetAvg,ny){
+  const n=ny||8;
+  if(Math.abs(calcAvgFromGrowth(start,0,n)-targetAvg)<0.001) return 0;
   let lo=-50, hi=1000;
   for(let i=0;i<120;i++){
     const mid=(lo+hi)/2;
-    if(calcAvgFromGrowth(start,mid)<targetAvg) lo=mid; else hi=mid;
+    if(calcAvgFromGrowth(start,mid,n)<targetAvg) lo=mid; else hi=mid;
   }
   return (lo+hi)/2;
 }
 
 function update8y(){
   const ch=CHARGERS[curKW];
-  const u=getUnits();
+  const totalYears=getTotalYears();
+  const yearUnits=getYearUnits(totalYears);
   const startRate=Math.max(0,parseFloat(document.getElementById('startRate').value)||2);
-  // 成長率手入力 or 平均稼働率から逆算
+
   const fromGrowth=growthFromInput;
   growthFromInput=false;
   let growthRate;
@@ -418,106 +472,111 @@ function update8y(){
     growthRate=parseFloat(document.getElementById('growthRateInput').value)||0;
   } else {
     const targetAvg=Math.max(0,parseFloat(document.getElementById('targetAvg').value)||15);
-    growthRate=findGrowthRate(startRate, targetAvg);
+    growthRate=findGrowthRate(startRate,targetAvg,totalYears);
     document.getElementById('growthRateInput').value=growthRate.toFixed(2);
   }
-  document.getElementById('growthRate').value=growthRate.toFixed(4); // hidden保持
+  document.getElementById('growthRate').value=growthRate.toFixed(4);
 
   // 年次別稼働率（複利成長）
   const yearRates=[];
-  for(let y=1;y<=8;y++){
-    yearRates.push(startRate*Math.pow(1+growthRate/100,y-1));
-  }
-  const avgRate=yearRates.reduce((a,b)=>a+b,0)/8;
+  for(let y=1;y<=totalYears;y++) yearRates.push(startRate*Math.pow(1+growthRate/100,y-1));
+  const avgRate=yearRates.reduce((a,b)=>a+b,0)/totalYears;
 
-  // avgInputを更新（cardsセクション等で参照）、成長率手入力時はtargetAvgも更新
   document.getElementById('avgInput').value=avgRate.toFixed(2);
   if(fromGrowth) document.getElementById('targetAvg').value=avgRate.toFixed(2);
+  const avgLbl=document.getElementById('avgLabel');
+  if(avgLbl) avgLbl.textContent=totalYears+'年間 平均稼働率（目標）';
 
-  // 年次別収益計算
   const yearData=yearRates.map(r=>calcAt(r));
 
-  // 累積損益（cumulative cashFlow×u − 初期投資×u）
-  const totalInit=ch.totalInit*u;
+  // 累積損益（台数増加時にその分の初期投資を追加支出）
   const cumData=[];
   let cumCF=0;
-  for(let y=0;y<8;y++){cumCF+=yearData[y].cashFlow*u+yearData[y].bfix*(u-1);cumData.push(cumCF-totalInit);}
-
-  // 8年合計（×台数）
-  const total8rev =yearData.reduce((a,d)=>a+d.rev,0)*u;
-  const total8b   =yearData.reduce((a,d)=>a+d.bShare,0)*u + yearData.reduce((a,d)=>a+d.bfix,0);
-  const total8ec  =yearData.reduce((a,d)=>a+d.ec,0)*u;
-  const total8fix =getFixed()*8*u;
-  const total8net =cumData[7];
-
-  // 投資回収年（bfixは定額なのでper-unit換算して比較）
-  let beYear=null;
-  let cumCF2=0;
-  for(let y=0;y<8;y++){
-    const prev=cumCF2;
-    const effCF=yearData[y].cashFlow+yearData[y].bfix*(u-1)/u;
-    cumCF2+=effCF;
-    if(cumCF2>=ch.totalInit&&beYear===null){
-      const frac=(ch.totalInit-prev)/effCF;
-      beYear=y+frac;
-    }
+  for(let y=0;y<totalYears;y++){
+    const u=yearUnits[y],prevU=y>0?yearUnits[y-1]:0,addedU=Math.max(0,u-prevU);
+    cumCF+=yearData[y].cashFlow*u+yearData[y].bfix*(u-1)-addedU*ch.totalInit;
+    cumData.push(cumCF);
   }
 
-  // 損益分岐稼働率（参考：定常稼働で8年回収できる稼働率）
+  // N年間合計
+  const totalInvest=yearUnits.reduce((a,u,y)=>{const p=y>0?yearUnits[y-1]:0;return a+Math.max(0,u-p)*ch.totalInit;},0);
+  const totalNrev=yearData.reduce((a,d,y)=>a+d.rev*yearUnits[y],0);
+  const totalNb  =yearData.reduce((a,d,y)=>a+d.bShare*yearUnits[y]+d.bfix,0);
+  const totalNec =yearData.reduce((a,d,y)=>a+d.ec*yearUnits[y],0);
+  const totalNfix=yearData.reduce((a,d,y)=>a+getFixed()*yearUnits[y],0);
+  const totalNnet=cumData[totalYears-1];
+
+  // 投資回収年
+  let beYear=null;
+  let cumCF2=0;
+  for(let y=0;y<totalYears;y++){
+    const u=yearUnits[y],prevU=y>0?yearUnits[y-1]:0,addedU=Math.max(0,u-prevU);
+    const prev=cumCF2;
+    const yc=yearData[y].cashFlow*u+yearData[y].bfix*(u-1)-addedU*ch.totalInit;
+    cumCF2+=yc;
+    if(cumCF2>=0&&beYear===null&&yc!==0){beYear=prev>=0?y:y+(-prev/yc);}
+  }
+
+  // 損益分岐稼働率（初年度台数基準）
+  const u1=yearUnits[0];
   let beRate8=null;
   for(let ri=0;ri<rates.length;ri++){
     const d=calcAt(rates[ri]);
-    if(d.cashFlow+d.bfix*(u-1)/u>=ch.totalInit/8){beRate8=rates[ri];break;}
+    if(d.cashFlow+d.bfix*(u1-1)/u1>=ch.totalInit/DEP_YEARS){beRate8=rates[ri];break;}
   }
-  // 年間損益分岐稼働率（操業CF黒字 = 減価償却なし）
   let beRateAnnual=null;
   for(let ri=0;ri<rates.length;ri++){
     if(calcAt(rates[ri]).cashFlow>0){beRateAnnual=rates[ri];break;}
   }
 
-  // 8年間トータル黒字になる最低平均稼働率（成長モデルで二分探索）
-  function calc8yNet(tAvg){
-    const gr=findGrowthRate(startRate,tAvg);
-    const yRates=[];
-    for(let y=1;y<=8;y++) yRates.push(startRate*Math.pow(1+gr/100,y-1));
+  // N年トータル黒字最低平均稼働率（二分探索）
+  function calcNyNet(tAvg){
+    const gr=findGrowthRate(startRate,tAvg,totalYears);
     let cf=0;
-    yRates.forEach(r=>{const d=calcAt(r);cf+=d.cashFlow*u+d.bfix*(u-1);});
-    return cf-ch.totalInit*u;
+    for(let y=0;y<totalYears;y++){
+      const r=startRate*Math.pow(1+gr/100,y);
+      const u=yearUnits[y],prevU=y>0?yearUnits[y-1]:0,addedU=Math.max(0,u-prevU);
+      const d=calcAt(r);
+      cf+=d.cashFlow*u+d.bfix*(u-1)-addedU*ch.totalInit;
+    }
+    return cf;
   }
   let beAvg8=null;
-  // まず上限100%でも黒字にならない場合は未達
-  if(calc8yNet(100)>=0){
-    // 二分探索
+  if(calcNyNet(100)>=0){
     let lo=startRate, hi=100;
-    for(let i=0;i<80;i++){
-      const mid=(lo+hi)/2;
-      if(calc8yNet(mid)<0) lo=mid; else hi=mid;
-    }
+    for(let i=0;i<80;i++){const mid=(lo+hi)/2;if(calcNyNet(mid)<0)lo=mid;else hi=mid;}
     beAvg8=parseFloat(((lo+hi)/2).toFixed(1));
   }
 
+  // セクションタイトル
+  const secTitle=document.getElementById('sec8yTitle');
+  if(secTitle) secTitle.textContent=`📅 事業損益試算（${totalYears}年間）`;
+
   document.getElementById('sum8y').innerHTML=`
-    <h3>💰 8年間収益サマリー（平均稼働率 ${avgRate.toFixed(1)}%）</h3>
-    <div class="s8row sec"><span>── 稼働率推移 ──</span></div>
+    <h3>💰 ${totalYears}年間収益サマリー（平均稼働率 ${avgRate.toFixed(1)}%）</h3>
+    <div class="s8row sec"><span>── 稼働率・台数推移 ──</span></div>
     ${yearRates.map((r,i)=>`<div class="s8row" style="font-size:.75rem;">
       <span style="color:#6080a0;">${i+1}年目</span>
-      <span style="color:${r>=15?'#90d060':r>=8?'#f0c840':'#a0b8d0'}">${r.toFixed(1)}%</span>
+      <span style="display:flex;gap:8px;align-items:center;">
+        <span style="color:${r>=15?'#90d060':r>=8?'#f0c840':'#a0b8d0'}">${r.toFixed(1)}%</span>
+        <span style="color:#5080a0;font-size:.68rem;background:#0a1428;border:1px solid #1a3050;border-radius:4px;padding:0 5px;">${yearUnits[i]}台</span>
+      </span>
     </div>`).join('')}
-    <div class="s8row sec"><span>── 8年間累計 ──</span></div>
-    <div class="s8row"><span>総売上</span><span style="color:#6ab0ff">${fmtM(total8rev)}</span></div>
-    <div class="s8row red"><span>B社費用</span><span>${fmtM(total8b)}</span></div>
-    <div class="s8row" style="color:#8090c0"><span>電力費</span><span>${fmtM(total8ec)}</span></div>
-    <div class="s8row" style="color:#909090"><span>固定費</span><span>${fmtM(total8fix)}</span></div>
-    <div class="s8row pur"><span>初期投資</span><span>${fmtM(ch.totalInit)}</span></div>
-    <div class="${total8net>=0?'s8row pos':'s8row neg'}"><span>8年間純損益</span><span>${fmtM(total8net)}</span></div>
+    <div class="s8row sec"><span>── ${totalYears}年間累計 ──</span></div>
+    <div class="s8row"><span>総売上</span><span style="color:#6ab0ff">${fmtM(totalNrev)}</span></div>
+    <div class="s8row red"><span>B社費用</span><span>${fmtM(totalNb)}</span></div>
+    <div class="s8row" style="color:#8090c0"><span>電力費</span><span>${fmtM(totalNec)}</span></div>
+    <div class="s8row" style="color:#909090"><span>固定費</span><span>${fmtM(totalNfix)}</span></div>
+    <div class="s8row pur"><span>初期投資合計</span><span>${fmtM(totalInvest)}</span></div>
+    <div class="${totalNnet>=0?'s8row pos':'s8row neg'}"><span>${totalYears}年間純損益</span><span>${fmtM(totalNnet)}</span></div>
     <div class="s8row sec"><span>── 損益分岐 ──</span></div>
     <div class="${beAvg8!==null?'s8row be':'s8row neg'}" style="${beAvg8!==null?'background:rgba(80,208,128,.15);border-left:3px solid #50d080;':''}">
-      <span>🏁 8年トータル黒字になる最低平均稼働率</span>
+      <span>🏁 ${totalYears}年トータル黒字になる最低平均稼働率</span>
       <span style="font-size:.95rem;font-weight:700;">${beAvg8!==null?beAvg8.toFixed(1)+'%':'100%超（未達）'}</span>
     </div>
     <div class="s8row">
-      <span>📈 現在の8年平均稼働率（目標）</span>
-      <span style="color:${total8net>=0?'#50d080':'#f0d060'};">${avgRate.toFixed(1)}%${total8net>=0?' ✓':beAvg8!==null?' (目標 '+beAvg8.toFixed(1)+'% 必要)':''}</span>
+      <span>📈 現在の${totalYears}年平均稼働率（目標）</span>
+      <span style="color:${totalNnet>=0?'#50d080':'#f0d060'};">${avgRate.toFixed(1)}%${totalNnet>=0?' ✓':beAvg8!==null?' (目標 '+beAvg8.toFixed(1)+'% 必要)':''}</span>
     </div>
     <div class="${beRateAnnual!==null?'s8row be':'s8row neg'}">
       <span>📊 年間損益分岐稼働率（償却前）</span>
@@ -527,113 +586,77 @@ function update8y(){
       <span>🎯 損益分岐稼働率（定常・償却込み）</span>
       <span>${beRate8!==null?beRate8.toFixed(1)+'%':'未達'}</span>
     </div>
-    <div class="s8row ${beYear&&beYear<=8?'be':''}">
+    <div class="s8row ${beYear&&beYear<=totalYears?'be':''}">
       <span>📆 投資回収年数</span>
-      <span style="color:${beYear&&beYear<=8?'#90d060':beYear?'#f0c840':'#ff7070'}">${beYear?beYear.toFixed(1)+'年':'8年内回収不可'}</span>
+      <span style="color:${beYear&&beYear<=totalYears?'#90d060':beYear?'#f0c840':'#ff7070'}">${beYear?beYear.toFixed(1)+'年':totalYears+'年内回収不可'}</span>
     </div>
   `;
 
-  // 8年間純損益カードを更新
+  // カード更新
   const n8Val=document.getElementById('card8yNetVal');
   if(n8Val){
-    n8Val.textContent=(total8net>=0?'':'−')+'¥'+Math.abs(Math.round(total8net)).toLocaleString();
-    n8Val.className='card-val '+(total8net>=0?'green':'red');
+    n8Val.textContent=(totalNnet>=0?'':'−')+'¥'+Math.abs(Math.round(totalNnet)).toLocaleString();
+    n8Val.className='card-val '+(totalNnet>=0?'green':'red');
   }
-
-  // 投資回収年数カードを更新
   const byVal=document.getElementById('cardBeYearVal');
   if(byVal){
-    byVal.textContent=beYear?beYear.toFixed(1)+'年':'8年超';
-    byVal.className='card-val '+(beYear&&beYear<=8?'green':beYear?'orange':'red');
+    byVal.textContent=beYear?beYear.toFixed(1)+'年':totalYears+'年超';
+    byVal.className='card-val '+(beYear&&beYear<=totalYears?'green':beYear?'orange':'red');
   }
 
-  // 8年チャート（棒：累積損益 ＋ 折れ線：稼働率推移）
+  // チャート
   if(chart8)chart8.destroy();
-  const labels=['1年目','2年目','3年目','4年目','5年目','6年目','7年目','8年目'];
+  const fsz=totalYears>15?7:totalYears>10?8:9;
+  const labels=Array.from({length:totalYears},(_,i)=>`${i+1}年(${yearUnits[i]}台)`);
 
   const dataLabels8={
     id:'dataLabels8',
     afterDatasetsDraw(chart){
-      const{ctx,data,scales:{y,y2}}=chart;
+      const{ctx,scales:{y,y2}}=chart;
       ctx.save();
-      // 棒：累積純損益ラベル
       const barMeta=chart.getDatasetMeta(0);
       barMeta.data.forEach((bar,i)=>{
         const val=cumData[i];
         const lbl=(val>=0?'':'−')+'¥'+Math.abs(Math.round(val/10000))+'万';
         const above=val>=0;
-        ctx.font='bold 9px sans-serif';
+        ctx.font=`bold ${fsz}px sans-serif`;
         ctx.fillStyle=val>=0?'#50d080':'#ff8080';
         ctx.textAlign='center';
         ctx.textBaseline=above?'bottom':'top';
         ctx.fillText(lbl,bar.x,above?bar.y-3:bar.y+3);
       });
-      // 折れ線：稼働率ラベル
       const lineMeta=chart.getDatasetMeta(1);
       lineMeta.data.forEach((pt,i)=>{
-        const val=yearRates[i];
-        ctx.font='bold 9px sans-serif';
+        ctx.font=`bold ${fsz}px sans-serif`;
         ctx.fillStyle='#f0d060';
         ctx.textAlign='center';
         ctx.textBaseline='bottom';
-        ctx.fillText(val.toFixed(1)+'%',pt.x,pt.y-6);
+        ctx.fillText(yearRates[i].toFixed(1)+'%',pt.x,pt.y-6);
       });
       ctx.restore();
     }
   };
 
   chart8=new Chart(document.getElementById('chart8y').getContext('2d'),{
-    type:'bar',
-    plugins:[dataLabels8],
-    data:{
-      labels,
-      datasets:[
-        {
-          type:'bar',
-          label:'累積純損益',
-          data:cumData,
-          backgroundColor:cumData.map(v=>v>=0?'rgba(80,208,128,.7)':'rgba(255,100,100,.6)'),
-          borderColor:cumData.map(v=>v>=0?'#50d080':'#ff6464'),
-          borderWidth:1.5,borderRadius:4,
-          yAxisID:'y',order:2,
-        },
-        {
-          type:'line',
-          label:'稼働率',
-          data:yearRates,
-          borderColor:'#f0d060',backgroundColor:'rgba(240,208,96,.12)',
-          borderWidth:2,pointRadius:4,pointBackgroundColor:'#f0d060',tension:.3,
-          yAxisID:'y2',order:1,
-        }
-      ]
-    },
+    type:'bar',plugins:[dataLabels8],
+    data:{labels,datasets:[
+      {type:'bar',label:'累積損益',data:cumData,backgroundColor:cumData.map(v=>v>=0?'rgba(80,208,128,.7)':'rgba(255,100,100,.6)'),borderColor:cumData.map(v=>v>=0?'#50d080':'#ff6464'),borderWidth:1.5,borderRadius:4,yAxisID:'y',order:2},
+      {type:'line',label:'稼働率',data:yearRates,borderColor:'#f0d060',backgroundColor:'rgba(240,208,96,.12)',borderWidth:2,pointRadius:totalYears>15?2:4,pointBackgroundColor:'#f0d060',tension:.3,yAxisID:'y2',order:1}
+    ]},
     options:{
       responsive:true,maintainAspectRatio:true,
       layout:{padding:{top:24}},
       plugins:{
         legend:{labels:{color:'#a0b8d0',font:{size:10},boxWidth:18}},
-        tooltip:{callbacks:{
-          label:c=>c.datasetIndex===0?` 累積損益: ${fmt(c.raw)}`:` 稼働率: ${c.raw.toFixed(1)}%`
-        }}
+        tooltip:{callbacks:{label:c=>c.datasetIndex===0?` 累積損益: ${fmt(c.raw)}`:` 稼働率: ${c.raw.toFixed(1)}%`}}
       },
       scales:{
-        x:{ticks:{color:'#6080a0',font:{size:10}},grid:{color:'rgba(60,90,140,.15)'}},
-        y:{
-          position:'left',
-          ticks:{color:'#6080a0',callback:v=>(v<0?'−':'')+'¥'+Math.abs(Math.round(v/10000)).toLocaleString()+'万',font:{size:9}},
-          grid:{color:'rgba(60,90,140,.15)'},
-          afterDataLimits(axis){const mx=Math.max(Math.abs(axis.min),Math.abs(axis.max));axis.min=-mx*1.15;axis.max=mx*1.15;}
-        },
-        y2:{
-          position:'right',
-          min:0,
-          ticks:{color:'#d0b840',callback:v=>v+'%',font:{size:9}},
-          grid:{display:false},
-        }
+        x:{ticks:{color:'#6080a0',font:{size:fsz}},grid:{color:'rgba(60,90,140,.15)'}},
+        y:{position:'left',ticks:{color:'#6080a0',callback:v=>(v<0?'−':'')+'¥'+Math.abs(Math.round(v/10000)).toLocaleString()+'万',font:{size:9}},grid:{color:'rgba(60,90,140,.15)'},afterDataLimits(axis){const mx=Math.max(Math.abs(axis.min),Math.abs(axis.max));axis.min=-mx*1.15;axis.max=mx*1.15;}},
+        y2:{position:'right',min:0,ticks:{color:'#d0b840',callback:v=>v+'%',font:{size:9}},grid:{display:false}}
       }
     }
   });
-
 }
 
 function update(){
@@ -651,15 +674,16 @@ function update(){
   const avgRev=calcAt(avgRate2).rev;
   const uLabel=u>1?` <span style="font-size:.7rem;color:#6080a0;">（×${u}台）</span>`:'';
 
+  const ny=getTotalYears();
   document.getElementById('cards').innerHTML=`
-    <div class="card" id="card8yNet"><div class="card-label">8年間純損益${uLabel}</div><div class="card-val" id="card8yNetVal">…</div></div>
-    <div class="card"><div class="card-label">総計初期コスト${uLabel}</div><div class="card-val blue">${fmt(ch.totalInit*u)}</div></div>
+    <div class="card" id="card8yNet"><div class="card-label">${ny}年間純損益${uLabel}</div><div class="card-val" id="card8yNetVal">…</div></div>
+    <div class="card"><div class="card-label">1年目 初期コスト${uLabel}</div><div class="card-val blue">${fmt(ch.totalInit*u)}</div></div>
     <div class="card"><div class="card-label">年間売上（稼働率${avgRate2.toFixed(1)}%）${uLabel}</div><div class="card-val" style="color:#6ab0ff">${fmt(avgRev*u)}</div></div>
-    <div class="card"><div class="card-label">年間償却費（÷8年）${uLabel}</div><div class="card-val purple">${fmt(dep*u)}</div></div>
+    <div class="card"><div class="card-label">年間償却費（÷${DEP_YEARS}年）${uLabel}</div><div class="card-val purple">${fmt(dep*u)}</div></div>
     <div class="card"><div class="card-label">年間固定費（保守+技術士）${uLabel}</div><div class="card-val">${fmt(getFixed()*u)}</div></div>
     <div class="card"><div class="card-label">B社固定費/年（台数問わず定額）</div><div class="card-val orange">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#806040;margin-left:4px;">(月${fmt(bfixMonthly)})</span></div></div>
     <div class="card"><div class="card-label">損益分岐（年間・償却後）</div><div class="card-val ${beRate!==null?'green':'red'}">${beRate!==null?beRate.toFixed(1)+'%':'未達'}</div></div>
-    <div class="card" id="cardBeYear"><div class="card-label">投資回収年数（8年試算）</div><div class="card-val" id="cardBeYearVal">…</div></div>
+    <div class="card" id="cardBeYear"><div class="card-label">投資回収年数（${ny}年試算）</div><div class="card-val" id="cardBeYearVal">…</div></div>
   `;
 
   const m=u>1?` ×${u}台`:''; // 台数ラベル
@@ -728,6 +752,8 @@ function update(){
 // ========== 電気代3社比較チャート ==========
 let elecChart=null;
 
+// 初期化：年次台数グリッドを生成してからupdateAll
+renderYearUnitsGrid(8,[]);
 setKW(0); // setKW → updateAll() を呼ぶ
 
 function getElecCosts(kw){
@@ -906,73 +932,78 @@ function updateElecChart(){
 // ========== B社収益試算 ==========
 function updateBRev(){
   const ch=CHARGERS[curKW];
-  const u=getUnits();
+  const totalYears=getTotalYears();
+  const yearUnits=getYearUnits(totalYears);
   const bfixMonthly=+(document.getElementById('inBfix').value||0);
   const bfixAnnual=bfixMonthly*12;
 
-  // 8年間の年次稼働率（update8yと同じロジック）
+  // 年次稼働率（update8yで算出済み成長率を使用）
   const startRate=Math.max(0,parseFloat(document.getElementById('startRate').value)||2);
-  const growthRate=parseFloat(document.getElementById('growthRate').value)||0; // update8yで算出済み
+  const growthRate=parseFloat(document.getElementById('growthRate').value)||0;
   const yearRates=[];
-  for(let y=1;y<=8;y++) yearRates.push(startRate*Math.pow(1+growthRate/100,y-1));
-  const avgRate=yearRates.reduce((a,b)=>a+b,0)/8;
+  for(let y=1;y<=totalYears;y++) yearRates.push(startRate*Math.pow(1+growthRate/100,y-1));
+  const avgRate=yearRates.reduce((a,b)=>a+b,0)/totalYears;
 
-  // 一時収益（販売時）
-  const initProfit=(ch.profit+ADDON_PROFIT)*u;
-  const uLbl=u>1?` ×${u}台`:'';
+  // 初期利益（台数増加時に都度計上）
+  const totalInitProfit=yearUnits.reduce((a,u,y)=>{
+    const p=y>0?yearUnits[y-1]:0;
+    const added=Math.max(0,u-p);
+    return a+(ch.profit+ADDON_PROFIT)*added;
+  },0);
+  const u1=yearUnits[0];
+  const uLbl=u1>1?` ×${u1}台`:'';
 
-  // 年次別 運用収益（×台数）
-  const yearOpProfit=yearRates.map(r=>{
+  // 年次別 運用収益（各年の台数を反映）
+  const yearOpProfit=yearRates.map((r,y)=>{
+    const u=yearUnits[y];
     const d=calcAt(r);
     return d.bShare*u + bfixAnnual + MAINTENANCE_PROFIT*u;
   });
-  const total8op=yearOpProfit.reduce((a,b)=>a+b,0);
+  const totalNop=yearOpProfit.reduce((a,b)=>a+b,0);
+  const totalN=totalInitProfit+totalNop;
 
-  // 8年間総収益
-  const total8=initProfit+total8op;
-
-  // 平均稼働率での年間内訳
   const dAvg=calcAt(avgRate);
+  const uAvg=Math.round(yearUnits.reduce((a,b)=>a+b,0)/totalYears);
 
   const sec=document.getElementById('bRevSection');
   sec.innerHTML=`
-  <h2>💼 B社 収益試算${u>1?` <span style="font-size:.75rem;color:#70d090;">${u}台合計</span>`:''}</h2>
+  <h2>💼 B社 収益試算（${totalYears}年間）</h2>
   <div class="brev-grid">
 
     <div class="brev-box">
-      <h3>📦 初期利益（販売時・一回限り）${uLbl}</h3>
-      <div class="brev-row"><span class="label">充電器本体 利益${uLbl}</span><span class="val">${fmt(ch.profit*u)}</span></div>
-      <div class="brev-row"><span class="label">付帯設備 利益${uLbl}</span><span class="val">${fmt(ADDON_PROFIT*u)}</span></div>
-      <div class="brev-row total"><span class="label">初期利益 合計</span><span class="val">${fmt(initProfit)}</span></div>
+      <h3>📦 初期利益（台数追加時に計上）</h3>
+      <div class="brev-row"><span class="label">充電器+付帯利益 × 追加台数</span><span class="val">${fmt(totalInitProfit)}</span></div>
+      <div class="brev-row total"><span class="label">初期利益 合計</span><span class="val">${fmt(totalInitProfit)}</span></div>
     </div>
 
     <div class="brev-box">
-      <h3>🔄 年間 運用収益（平均稼働率 ${avgRate.toFixed(1)}%）${uLbl}</h3>
-      <div class="brev-row"><span class="label">売上シェア（${+(document.getElementById('inShare').value||0)}%）${uLbl}</span><span class="val">${fmt(dAvg.bShare*u)}</span></div>
+      <h3>🔄 年間 運用収益（平均稼働率 ${avgRate.toFixed(1)}%・平均${uAvg}台）</h3>
+      <div class="brev-row"><span class="label">売上シェア（${+(document.getElementById('inShare').value||0)}%）×平均台数</span><span class="val">${fmt(dAvg.bShare*uAvg)}</span></div>
       <div class="brev-row"><span class="label">固定費収入（定額）</span><span class="val">${fmt(bfixAnnual)}<span style="font-size:.7rem;color:#507050;margin-left:4px;">/年</span></span></div>
-      <div class="brev-row"><span class="label">保守利益${uLbl}</span><span class="val">${fmt(MAINTENANCE_PROFIT*u)}</span></div>
-      <div class="brev-row total"><span class="label">年間 運用収益 合計</span><span class="val">${fmt(dAvg.bShare*u+bfixAnnual+MAINTENANCE_PROFIT*u)}</span></div>
+      <div class="brev-row"><span class="label">保守利益 × 平均台数</span><span class="val">${fmt(MAINTENANCE_PROFIT*uAvg)}</span></div>
+      <div class="brev-row total"><span class="label">年間 運用収益 合計（平均年）</span><span class="val">${fmt(dAvg.bShare*uAvg+bfixAnnual+MAINTENANCE_PROFIT*uAvg)}</span></div>
     </div>
 
     <div class="brev-box">
-      <h3>📅 8年間 累計収益</h3>
+      <h3>📅 ${totalYears}年間 累計収益</h3>
       ${yearRates.map((r,i)=>{
+        const u=yearUnits[i];
         const d=calcAt(r);
         const yop=d.bShare*u+bfixAnnual+MAINTENANCE_PROFIT*u;
         return`<div class="brev-row" style="font-size:.75rem;">
-          <span class="label">${i+1}年目（${r.toFixed(1)}%）</span>
+          <span class="label">${i+1}年目（${r.toFixed(1)}%・${u}台）</span>
           <span class="val">${fmtM(yop)}</span>
         </div>`;
       }).join('')}
-      <div class="brev-row total" style="margin-top:4px;"><span class="label">8年間 運用収益</span><span class="val">${fmt(total8op)}</span></div>
-      <div class="brev-row grand"><span class="label">🏆 8年間 総収益（初期含む）</span><span class="val">${fmt(total8)}</span></div>
+      <div class="brev-row total" style="margin-top:4px;"><span class="label">${totalYears}年間 運用収益</span><span class="val">${fmt(totalNop)}</span></div>
+      <div class="brev-row grand"><span class="label">🏆 ${totalYears}年間 総収益（初期含む）</span><span class="val">${fmt(totalN)}</span></div>
     </div>
 
   </div>
   <div class="brev-note">
-    ・初期利益：充電器本体（売値−原価）＋付帯設備利益 ¥140,000<br>
+    ・初期利益：充電器本体（売値−原価）＋付帯設備利益 ¥140,000（台数追加時に計上）<br>
     ・保守：売値 ¥240,000/年 − 原価 ¥100,000/年 ＝ 利益 ¥140,000/年<br>
-    ・運用収益は上記の8年間成長モデルの稼働率を使用
+    ・運用収益は年次稼働率と各年の設置台数を使用
   </div>
   `;
 }
