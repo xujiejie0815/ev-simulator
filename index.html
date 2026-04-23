@@ -71,6 +71,16 @@ input[type=number]:focus{border-color:#f0a040;}
 .year-unit-item .yulabel{font-size:.7rem;color:#5070a0;min-width:22px;}
 .year-unit-item input{width:42px;background:#060e1a;border:1px solid #1a3050;border-radius:4px;color:#c0d0e8;font-size:.75rem;padding:2px 4px;text-align:center;}
 .year-unit-item span{font-size:.7rem;color:#4060a0;}
+.year-rates-row{background:#0a1220;border:1px solid #2a4030;border-radius:8px;padding:10px 14px;margin-bottom:14px;}
+.year-rates-row .yur-label{font-size:.68rem;color:#60a080;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
+.year-rates-grid{display:flex;flex-wrap:wrap;gap:6px;}
+.year-rate-item{display:flex;align-items:center;gap:3px;background:#0a1a12;border:1px solid #1a4030;border-radius:6px;padding:4px 8px;}
+.year-rate-item .yrlabel{font-size:.7rem;color:#406050;min-width:22px;}
+.year-rate-item input{width:46px;background:#060e0a;border:1px solid #1a4030;border-radius:4px;color:#a0d0b8;font-size:.75rem;padding:2px 4px;text-align:center;}
+.year-rate-item span{font-size:.7rem;color:#406050;}
+.rate-mode-toggle{display:inline-flex;border:1px solid #2a4030;border-radius:6px;overflow:hidden;font-size:.68rem;}
+.rate-mode-toggle button{background:#0a1a12;color:#60a080;border:none;padding:3px 8px;cursor:pointer;transition:background .15s;}
+.rate-mode-toggle button.active{background:#1a4030;color:#90d0a0;font-weight:700;}
 .s8-ctrl-item{display:flex;flex-direction:column;gap:5px;}
 .s8-ctrl-item label{font-size:.68rem;color:#7090a0;letter-spacing:1px;text-transform:uppercase;}
 .s8-input{display:flex;align-items:center;gap:6px;}
@@ -275,6 +285,17 @@ td:first-child{text-align:center;color:#6080a0;font-weight:600;}
     <div class="yur-label">年次別 設置台数（何年目に何台稼働させるか ／ 1年目はメインチャート・カード表示にも反映）</div>
     <div class="year-units-grid" id="yearUnitsGrid"></div>
   </div>
+  <!-- 年次稼働率グリッド -->
+  <div class="year-rates-row">
+    <div class="yur-label">
+      <span>年次別 稼働率</span>
+      <div class="rate-mode-toggle">
+        <button id="rateModGrowth" class="active" onclick="setRateMode('growth')">成長率モード</button>
+        <button id="rateModManual" onclick="setRateMode('manual')">手入力モード</button>
+      </div>
+    </div>
+    <div class="year-rates-grid" id="yearRatesGrid"></div>
+  </div>
   <input type="hidden" id="avgInput" value="15">
   <input type="hidden" id="growthRate" value="8.25">
   <div class="s8-grid">
@@ -356,6 +377,7 @@ document.getElementById('inShare').value=Math.round(+ss.value*100);
 const sb=document.getElementById('selBfix');
 [0,10000,30000,50000,100000,200000,300000,500000,1000000,1500000,2000000,3000000].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v===0?'なし':'¥'+v.toLocaleString()+'/月';sb.appendChild(o);});
 let growthFromInput=false;
+let rateMode='growth'; // 'growth' | 'manual'
 function updateAll(){update();update8y();updateBRev();updateElecChart();}
 function syncBfix(){document.getElementById('inBfix').value=document.getElementById('selBfix').value;updateAll();}
 function syncPrice(){document.getElementById('inPrice').value=document.getElementById('selPrice').value;updateAll();}
@@ -397,13 +419,14 @@ function calcAt(r){
   const mins=365*24*60*(r/100);
   const rev=mins*price;
   const bShare=rev*share;
-  const bTotal=bShare+bfix;
+  const payFee=rev*0.03; // 決済手数料 3%（B社原価）
+  const bTotal=bShare+bfix+payFee;
   const {cost:ec,name:pwName}=getElec(r);
   const totalCost=bTotal+ec+getFixed()+dep;
   const net=rev-totalCost;
   // net before depreciation (cash flow)
   const cashFlow=rev-bTotal-ec-getFixed();
-  return{mins,rev,bShare,bfix,bTotal,ec,pwName,dep,totalCost,net,cashFlow};
+  return{mins,rev,bShare,bfix,payFee,bTotal,ec,pwName,dep,totalCost,net,cashFlow};
 }
 
 function fmt(v){return(v<0?'−¥':'¥')+Math.abs(Math.round(v)).toLocaleString();}
@@ -433,12 +456,51 @@ function renderYearUnitsGrid(ny,prevUnits){
 }
 
 function changeTotalYears(){
-  // 既存値を退避してグリッド再生成
   const oldNy=document.querySelectorAll('[id^="unitY"]').length;
   const oldUnits=[];
   for(let y=1;y<=oldNy;y++){const el=document.getElementById('unitY'+y);oldUnits.push(el?Math.max(1,+(el.value)||1):1);}
+  const oldRates=[];
+  for(let y=1;y<=oldNy;y++){const el=document.getElementById('rateY'+y);oldRates.push(el?parseFloat(el.value)||2:null);}
   renderYearUnitsGrid(getTotalYears(),oldUnits);
+  renderYearRatesGrid(getTotalYears(),oldRates);
   updateAll();
+}
+
+function setRateMode(mode){
+  rateMode=mode;
+  document.getElementById('rateModGrowth').classList.toggle('active',mode==='growth');
+  document.getElementById('rateModManual').classList.toggle('active',mode==='manual');
+  // ctrl の成長率関連を有効/無効
+  const s8ctrl=document.querySelector('.s8-ctrl');
+  if(s8ctrl){
+    s8ctrl.querySelectorAll('.s8-ctrl-item').forEach(el=>el.style.opacity=(mode==='manual'&&!el.querySelector('#inTotalYears'))?'0.35':'');
+  }
+  document.getElementById('yearRatesGrid').style.opacity=mode==='manual'?'1':'0.45';
+  document.getElementById('yearRatesGrid').style.pointerEvents=mode==='manual'?'auto':'none';
+  updateAll();
+}
+
+function getYearRatesManual(ny){
+  const arr=[];
+  for(let y=1;y<=ny;y++){
+    const el=document.getElementById('rateY'+y);
+    arr.push(el?Math.max(0,parseFloat(el.value)||0):0);
+  }
+  return arr;
+}
+
+function renderYearRatesGrid(ny,prevRates){
+  const grid=document.getElementById('yearRatesGrid');
+  if(!grid) return;
+  let html='';
+  for(let y=1;y<=ny;y++){
+    const v=prevRates&&prevRates[y-1]!=null?prevRates[y-1]:2;
+    html+=`<div class="year-rate-item"><span class="yrlabel">${y}年</span><input type="number" id="rateY${y}" value="${v}" min="0" max="100" step="0.1" oninput="updateAll()"><span>%</span></div>`;
+  }
+  grid.innerHTML=html;
+  // 初期状態は成長率モードなので暗くしておく
+  grid.style.opacity=rateMode==='manual'?'1':'0.45';
+  grid.style.pointerEvents=rateMode==='manual'?'auto':'none';
 }
 
 // スタート率と目標平均から複利成長率を二分探索で逆算（ny: 試算年数）
@@ -465,25 +527,33 @@ function update8y(){
   const yearUnits=getYearUnits(totalYears);
   const startRate=Math.max(0,parseFloat(document.getElementById('startRate').value)||2);
 
-  const fromGrowth=growthFromInput;
-  growthFromInput=false;
-  let growthRate;
-  if(fromGrowth){
-    growthRate=parseFloat(document.getElementById('growthRateInput').value)||0;
+  // 年次別稼働率（手入力 or 複利成長）
+  let yearRates=[];
+  let avgRate;
+  if(rateMode==='manual'){
+    yearRates=getYearRatesManual(totalYears);
+    avgRate=yearRates.reduce((a,b)=>a+b,0)/totalYears;
+    // 手入力モードでも growthRate / startRate / targetAvg は表示用に計算
+    document.getElementById('growthRate').value='0';
   } else {
-    const targetAvg=Math.max(0,parseFloat(document.getElementById('targetAvg').value)||15);
-    growthRate=findGrowthRate(startRate,targetAvg,totalYears);
-    document.getElementById('growthRateInput').value=growthRate.toFixed(2);
+    const fromGrowth=growthFromInput;
+    growthFromInput=false;
+    let growthRate;
+    if(fromGrowth){
+      growthRate=parseFloat(document.getElementById('growthRateInput').value)||0;
+    } else {
+      const targetAvg=Math.max(0,parseFloat(document.getElementById('targetAvg').value)||15);
+      growthRate=findGrowthRate(startRate,targetAvg,totalYears);
+      document.getElementById('growthRateInput').value=growthRate.toFixed(2);
+    }
+    document.getElementById('growthRate').value=growthRate.toFixed(4);
+    for(let y=1;y<=totalYears;y++) yearRates.push(startRate*Math.pow(1+growthRate/100,y-1));
+    avgRate=yearRates.reduce((a,b)=>a+b,0)/totalYears;
+    document.getElementById('avgInput').value=avgRate.toFixed(2);
+    if(fromGrowth) document.getElementById('targetAvg').value=avgRate.toFixed(2);
+    // 成長率モードの時は手入力グリッドを自動更新
+    renderYearRatesGrid(totalYears,yearRates.map(r=>parseFloat(r.toFixed(1))));
   }
-  document.getElementById('growthRate').value=growthRate.toFixed(4);
-
-  // 年次別稼働率（複利成長）
-  const yearRates=[];
-  for(let y=1;y<=totalYears;y++) yearRates.push(startRate*Math.pow(1+growthRate/100,y-1));
-  const avgRate=yearRates.reduce((a,b)=>a+b,0)/totalYears;
-
-  document.getElementById('avgInput').value=avgRate.toFixed(2);
-  if(fromGrowth) document.getElementById('targetAvg').value=avgRate.toFixed(2);
   const avgLbl=document.getElementById('avgLabel');
   if(avgLbl) avgLbl.textContent=totalYears+'年間 平均稼働率（目標）';
 
@@ -500,10 +570,11 @@ function update8y(){
 
   // N年間合計
   const totalInvest=yearUnits.reduce((a,u,y)=>{const p=y>0?yearUnits[y-1]:0;return a+Math.max(0,u-p)*ch.totalInit;},0);
-  const totalNrev=yearData.reduce((a,d,y)=>a+d.rev*yearUnits[y],0);
-  const totalNb  =yearData.reduce((a,d,y)=>a+d.bShare*yearUnits[y]+d.bfix,0);
-  const totalNec =yearData.reduce((a,d,y)=>a+d.ec*yearUnits[y],0);
-  const totalNfix=yearData.reduce((a,d,y)=>a+getFixed()*yearUnits[y],0);
+  const totalNrev =yearData.reduce((a,d,y)=>a+d.rev*yearUnits[y],0);
+  const totalNb   =yearData.reduce((a,d,y)=>a+d.bShare*yearUnits[y]+d.payFee*yearUnits[y]+d.bfix,0);
+  const totalNpay =yearData.reduce((a,d,y)=>a+d.payFee*yearUnits[y],0);
+  const totalNec  =yearData.reduce((a,d,y)=>a+d.ec*yearUnits[y],0);
+  const totalNfix =yearData.reduce((a,d,y)=>a+getFixed()*yearUnits[y],0);
   const totalNnet=cumData[totalYears-1];
 
   // 投資回収年
@@ -564,7 +635,8 @@ function update8y(){
     </div>`).join('')}
     <div class="s8row sec"><span>── ${totalYears}年間累計 ──</span></div>
     <div class="s8row"><span>総売上</span><span style="color:#6ab0ff">${fmtM(totalNrev)}</span></div>
-    <div class="s8row red"><span>B社費用</span><span>${fmtM(totalNb)}</span></div>
+    <div class="s8row red"><span>B社費用合計</span><span>${fmtM(totalNb)}</span></div>
+    <div class="s8row" style="color:#c08050;padding-left:12px;font-size:.75rem;"><span>　うち 決済手数料(3%)</span><span>${fmtM(totalNpay)}</span></div>
     <div class="s8row" style="color:#8090c0"><span>電力費</span><span>${fmtM(totalNec)}</span></div>
     <div class="s8row" style="color:#909090"><span>固定費</span><span>${fmtM(totalNfix)}</span></div>
     <div class="s8row pur"><span>初期投資合計</span><span>${fmtM(totalInvest)}</span></div>
@@ -707,6 +779,7 @@ function update(){
     <div class="irow sub"><span>固定費合計</span><span>${fmt(getFixed()*u)}/年</span></div>
     <div class="irow sec"><span>── B社費用 ──</span></div>
     <div class="irow"><span>売上シェア</span><span>売上×${share}%</span></div>
+    <div class="irow"><span>決済手数料</span><span>売上×3%</span></div>
     <div class="irow"><span>固定費（定額）</span><span>${fmt(bfixAnnual)}/年</span></div>
   `;
 
@@ -729,7 +802,7 @@ function update(){
     }
   });
 
-  let rows=`<tr><th>稼働率</th><th>稼働分/年</th><th>年間売上</th><th>B社シェア</th><th>B社固定費</th><th>電力費</th><th>固定費</th><th>償却費</th><th>総コスト</th><th>年間純利益</th></tr>`;
+  let rows=`<tr><th>稼働率</th><th>稼働分/年</th><th>年間売上</th><th>B社シェア</th><th>決済手数料3%</th><th>B社固定費</th><th>電力費</th><th>固定費</th><th>償却費</th><th>総コスト</th><th>年間純利益</th></tr>`;
   visRates.forEach((r,i)=>{
     const d=calcAt(r);
     const netTotal=d.net*u+d.bfix*(u-1);
@@ -738,6 +811,7 @@ function update(){
       <td>${Math.round(d.mins*u).toLocaleString()}</td>
       <td style="color:#8ab0e0">${fmt(d.rev*u)}</td>
       <td style="color:#d09060">${fmt(d.bShare*u)}</td>
+      <td style="color:#c08050">${fmt(d.payFee*u)}</td>
       <td style="color:#c07040">${fmt(d.bfix)}</td>
       <td style="color:#7090d0">${fmt(d.ec*u)}</td>
       <td style="color:#909090">${fmt(getFixed()*u)}</td>
@@ -754,6 +828,7 @@ let elecChart=null;
 
 // 初期化：年次台数グリッドを生成してからupdateAll
 renderYearUnitsGrid(8,[]);
+renderYearRatesGrid(8,[]);
 setKW(0); // setKW → updateAll() を呼ぶ
 
 function getElecCosts(kw){
