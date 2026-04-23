@@ -438,7 +438,7 @@ function getYearUnits(ny){
   const arr=[];
   for(let y=1;y<=ny;y++){
     const el=document.getElementById('unitY'+y);
-    arr.push(el?Math.max(1,Math.round(+(el.value)||1)):1);
+    arr.push(el?Math.max(0,Math.round(+(el.value)||0)):0);
   }
   return arr;
 }
@@ -448,8 +448,8 @@ function renderYearUnitsGrid(ny,prevUnits){
   if(!grid) return;
   let html='';
   for(let y=1;y<=ny;y++){
-    const v=prevUnits&&prevUnits[y-1]!=null?prevUnits[y-1]:1;
-    html+=`<div class="year-unit-item"><span class="yulabel">${y}年</span><input type="number" id="unitY${y}" value="${v}" min="1" max="99" step="1" oninput="updateAll()"><span>台</span></div>`;
+    const v=prevUnits&&prevUnits[y-1]!=null?prevUnits[y-1]:0;
+    html+=`<div class="year-unit-item"><span class="yulabel">${y}年</span><input type="number" id="unitY${y}" value="${v}" min="0" max="99" step="1" oninput="updateAll()"><span>台</span></div>`;
   }
   grid.innerHTML=html;
 }
@@ -457,7 +457,7 @@ function renderYearUnitsGrid(ny,prevUnits){
 function changeTotalYears(){
   const oldNy=document.querySelectorAll('[id^="unitY"]').length;
   const oldUnits=[];
-  for(let y=1;y<=oldNy;y++){const el=document.getElementById('unitY'+y);oldUnits.push(el?Math.max(1,+(el.value)||1):1);}
+  for(let y=1;y<=oldNy;y++){const el=document.getElementById('unitY'+y);oldUnits.push(el?Math.max(0,+(el.value)||0):0);}
   const oldRates=[];
   for(let y=1;y<=oldNy;y++){const el=document.getElementById('rateY'+y);oldRates.push(el?parseFloat(el.value)||2:null);}
   renderYearUnitsGrid(getTotalYears(),oldUnits);
@@ -563,7 +563,7 @@ function update8y(){
   let cumCF=0;
   for(let y=0;y<totalYears;y++){
     const u=yearUnits[y],prevU=y>0?yearUnits[y-1]:0,addedU=Math.max(0,u-prevU);
-    cumCF+=yearData[y].cashFlow*u+yearData[y].bfix*(u-1)-addedU*ch.totalInit;
+    cumCF+=yearData[y].cashFlow*u-addedU*ch.totalInit;
     cumData.push(cumCF);
   }
 
@@ -571,7 +571,7 @@ function update8y(){
   const totalInvest=yearUnits.reduce((a,u,y)=>{const p=y>0?yearUnits[y-1]:0;return a+Math.max(0,u-p)*ch.totalInit;},0);
   const totalNrev =yearData.reduce((a,d,y)=>a+d.rev*yearUnits[y],0);
   // A社がB社に支払う合計（シェア＋保守費）※決済手数料はB社原価・A社負担なし
-  const totalNb   =yearData.reduce((a,d,y)=>a+d.bShare*yearUnits[y]+d.bfix,0);
+  const totalNb   =yearData.reduce((a,d,y)=>a+d.bTotal*yearUnits[y],0);
   const totalNpay =yearData.reduce((a,d,y)=>a+d.payFee*yearUnits[y],0); // B社原価参考用
   const totalNec  =yearData.reduce((a,d,y)=>a+d.ec*yearUnits[y],0);
   const totalNfix =yearData.reduce((a,d,y)=>a+getFixed()*yearUnits[y],0);
@@ -583,7 +583,7 @@ function update8y(){
   for(let y=0;y<totalYears;y++){
     const u=yearUnits[y],prevU=y>0?yearUnits[y-1]:0,addedU=Math.max(0,u-prevU);
     const prev=cumCF2;
-    const yc=yearData[y].cashFlow*u+yearData[y].bfix*(u-1)-addedU*ch.totalInit;
+    const yc=yearData[y].cashFlow*u-addedU*ch.totalInit;
     cumCF2+=yc;
     if(cumCF2>=0&&beYear===null&&yc!==0){beYear=prev>=0?y:y+(-prev/yc);}
   }
@@ -593,7 +593,7 @@ function update8y(){
   let beRate8=null;
   for(let ri=0;ri<rates.length;ri++){
     const d=calcAt(rates[ri]);
-    if(d.cashFlow+d.bfix*(u1-1)/u1>=ch.totalInit/DEP_YEARS){beRate8=rates[ri];break;}
+    if(d.cashFlow>=ch.totalInit/DEP_YEARS){beRate8=rates[ri];break;}
   }
   let beRateAnnual=null;
   for(let ri=0;ri<rates.length;ri++){
@@ -608,7 +608,7 @@ function update8y(){
       const r=startRate*Math.pow(1+gr/100,y);
       const u=yearUnits[y],prevU=y>0?yearUnits[y-1]:0,addedU=Math.max(0,u-prevU);
       const d=calcAt(r);
-      cf+=d.cashFlow*u+d.bfix*(u-1)-addedU*ch.totalInit;
+      cf+=d.cashFlow*u-addedU*ch.totalInit;
     }
     return cf;
   }
@@ -787,7 +787,7 @@ function update(){
   chart=new Chart(document.getElementById('mainChart').getContext('2d'),{
     type:'line',
     data:{labels:visRates.map(r=>r.toFixed(1)+'%'),datasets:[
-      {label:'年間純利益（償却後）',data:visRates.map(r=>{const d=calcAt(r);return d.net*u+d.bfix*(u-1);}),borderColor:'#50d080',backgroundColor:'rgba(80,208,128,.12)',borderWidth:2.5,pointRadius:0,tension:.3,fill:true},
+      {label:'年間純利益（償却後）',data:visRates.map(r=>{const d=calcAt(r);return d.net*u;}),borderColor:'#50d080',backgroundColor:'rgba(80,208,128,.12)',borderWidth:2.5,pointRadius:0,tension:.3,fill:true},
       {label:'年間売上',data:visRates.map(r=>calcAt(r).rev*u),borderColor:'#4a90ff',backgroundColor:'rgba(74,144,255,.05)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,tension:.3},
     ]},
     options:{responsive:true,maintainAspectRatio:true,interaction:{mode:'index',intersect:false},
@@ -802,7 +802,7 @@ function update(){
   let rows=`<tr><th>稼働率</th><th>稼働分/年</th><th>年間売上</th><th>B社シェア</th><th>B社保守費</th><th>電力費</th><th>高圧電技費</th><th>償却費</th><th>総コスト</th><th>年間純利益</th></tr>`;
   visRates.forEach((r,i)=>{
     const d=calcAt(r);
-    const netTotal=d.net*u+d.bfix*(u-1);
+    const netTotal=d.net*u;
     rows+=`<tr class="${netTotal>=0?'pro':'los'}">
       <td>${r.toFixed(1)}%</td>
       <td>${Math.round(d.mins*u).toLocaleString()}</td>
@@ -812,7 +812,7 @@ function update(){
       <td style="color:#7090d0">${fmt(d.ec*u)}</td>
       <td style="color:#909090">${fmt(getFixed()*u)}</td>
       <td style="color:#b070f0">${fmt(d.dep*u)}</td>
-      <td style="color:#b09070">${fmt(d.totalCost*u-d.bfix*(u-1))}</td>
+      <td style="color:#b09070">${fmt(d.totalCost*u)}</td>
       <td style="font-weight:700;color:${netTotal>=0?'#50d080':'#ff7070'}">${fmt(netTotal)}</td>
     </tr>`;
   });
