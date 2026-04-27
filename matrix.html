@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>EV充電器 損益マトリクス</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;background:#06101c;color:#c8d8ec;font-size:12px;}
+/* 2カラムレイアウト */
+#outerWrap{display:flex;align-items:flex-start;min-height:100vh;}
+#leftCol{flex:1;min-width:0;padding:14px;overflow:hidden;}
+#planSide{
+  width:320px;flex-shrink:0;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+  padding:12px 10px;
+  background:#060f1b;
+  border-left:1px solid #1a3050;
+  display:none;
+}
+#planSide::-webkit-scrollbar{width:4px;}
+#planSide::-webkit-scrollbar-thumb{background:#1a3050;border-radius:2px;}
+/* 右パネル内テーブル */
+#planSide table.mx{font-size:.64rem;}
+#planSide table.mx thead tr.hd1 th{font-size:.62rem;padding:3px 5px;}
+#planSide table.mx th,#planSide table.mx td{padding:2px 5px;}
+/* 比較カード */
+.cmp-card{background:#0a1828;border:1px solid #1a3050;border-radius:5px;padding:7px 9px;margin-bottom:7px;}
+.cmp-card .cmp-title{font-size:.65rem;color:#5080a0;letter-spacing:.5px;margin-bottom:5px;}
+.cmp-row{display:flex;justify-content:space-between;align-items:baseline;font-size:.68rem;padding:2px 0;border-bottom:1px solid #0d1e30;}
+.cmp-row:last-child{border:none;}
+.cmp-row .lbl{color:#607080;}
+.cmp-row .plan-v{color:#5a9a60;font-weight:600;}
+.cmp-row .calc-v{color:#6090c0;font-weight:600;}
+.cmp-row .diff-pos{color:#50c864;font-size:.62rem;}
+.cmp-row .diff-neg{color:#ff7070;font-size:.62rem;}
+.cmp-row .diff-nt{color:#5a7080;font-size:.62rem;}
+/* 達成率ゲージ */
+.gauge-block{margin-bottom:10px;}
+.gauge-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;}
+.gauge-label{font-size:.65rem;color:#5080a0;letter-spacing:.3px;}
+.gauge-pct{font-size:1.15rem;font-weight:700;letter-spacing:-.5px;}
+.gauge-pct.on-target{color:#50c864;}
+.gauge-pct.near{color:#c0d040;}
+.gauge-pct.under{color:#d08040;}
+.gauge-pct.far{color:#d06060;}
+.gauge-track{width:100%;height:8px;background:#0a1828;border-radius:4px;overflow:hidden;margin-bottom:2px;}
+.gauge-fill{height:100%;border-radius:4px;transition:width .4s;}
+.gauge-sub{display:flex;justify-content:space-between;font-size:.6rem;}
+.gauge-sub .calc-v{color:#6090c0;}
+.gauge-sub .plan-v{color:#4a7050;}
+/* 年別比較テーブル */
+.yr-cmp-tbl{width:100%;border-collapse:collapse;font-size:.63rem;margin-top:4px;}
+.yr-cmp-tbl th{background:#0a1a28;color:#5080a0;padding:3px 5px;text-align:center;font-weight:500;border-bottom:1px solid #1a3050;}
+.yr-cmp-tbl td{padding:3px 5px;border-bottom:1px solid #0d1e2a;text-align:right;vertical-align:middle;}
+.yr-cmp-tbl td.yr-lbl{text-align:center;color:#4a7090;font-weight:600;}
+.yr-cmp-tbl td.plan-col{color:#5a9060;}
+.yr-cmp-tbl td.calc-col{color:#5080b0;}
+.yr-cmp-tbl td.diff-pos{color:#50c864;font-weight:600;}
+.yr-cmp-tbl td.diff-neg{color:#d06060;font-weight:600;}
+.mini-bar-wrap{display:flex;align-items:center;gap:3px;}
+.mini-track{flex:1;height:5px;background:#0a1828;border-radius:2px;overflow:hidden;min-width:28px;}
+.mini-fill{height:100%;border-radius:2px;}
+.mini-pct{font-size:.58rem;color:#6080a0;min-width:24px;text-align:right;}
+/* セル選択 */
+.cmp-sel{display:flex;gap:5px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;}
+.cmp-sel .sg label{font-size:.58rem;}
+.cmp-sel .sg input,.cmp-sel .sg select{width:80px;font-size:.68rem;}
+.auto-btn{background:#0d1e10;border:1px solid #2a5020;color:#60a050;border-radius:4px;padding:3px 8px;font-size:.62rem;cursor:pointer;white-space:nowrap;}
+.auto-btn:hover{background:#1a3020;}
+
+h1{font-size:1.05rem;color:#a0c8e8;margin-bottom:10px;letter-spacing:1px;}
+.sec-title{font-size:.82rem;font-weight:700;color:#90c0e0;margin:18px 0 4px;padding:5px 10px;background:#0d1e30;border-left:3px solid #3a70b0;letter-spacing:.5px;}
+
+/* ==== 設定パネル ==== */
+.panel{display:flex;flex-wrap:wrap;gap:8px;background:#0a1828;border:1px solid #1a3050;border-radius:7px;padding:10px 14px;margin-bottom:8px;}
+.sg{display:flex;flex-direction:column;gap:3px;}
+.sg label{font-size:.62rem;color:#5080a0;letter-spacing:1px;text-transform:uppercase;}
+.sg input,.sg select{background:#060e1a;border:1px solid #1a3050;border-radius:4px;color:#c0d8f0;padding:3px 6px;font-size:.73rem;width:100px;}
+.sg.sm input{width:68px;}
+
+/* 充電器ボタン */
+.ch-row{display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap;}
+.ch-btn{background:#0a1828;border:1px solid #1a3050;color:#6090b0;border-radius:6px;padding:5px 13px;cursor:pointer;font-size:.75rem;transition:all .15s;}
+.ch-btn.active{background:#1a3860;border-color:#3a70b0;color:#a0d0f0;font-weight:700;}
+.ch-btn:hover:not(.active){background:#0d1e34;}
+
+/* 年次グリッド */
+.yr-grid{display:flex;flex-wrap:wrap;gap:5px;}
+.yr-item{display:flex;align-items:center;gap:2px;}
+.yr-item label{font-size:.62rem;color:#507090;min-width:20px;}
+.yr-item input{width:46px;background:#060e1a;border:1px solid #1a3050;border-radius:4px;color:#a0d0c0;font-size:.7rem;padding:2px 4px;text-align:center;}
+.yr-item.u input{color:#f0c870;border-color:#3a4020;}
+.units-badge{display:inline-flex;align-items:center;gap:5px;background:#0d1e10;border:1px solid #2a4020;border-radius:5px;padding:2px 8px;font-size:.7rem;color:#a0d080;margin-left:6px;}
+.units-badge b{font-size:.78rem;}
+
+/* ==== 前提値 ==== */
+.info-box{background:#080e18;border:1px solid #1a3050;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:.68rem;color:#507080;line-height:1.9;}
+.info-box strong{color:#6090b0;margin-right:6px;}
+.v{color:#80b0d0;}
+
+/* ==== テーブル ==== */
+.tbl-wrap{overflow-x:auto;margin-bottom:6px;}
+table.mx{border-collapse:collapse;white-space:nowrap;font-size:.72rem;}
+table.mx th,table.mx td{border:1px solid #1a3050;padding:3px 9px;}
+/* ヘッダ */
+table.mx thead tr.hd1 th{background:#0d1e30;color:#6090b0;text-align:center;font-weight:600;font-size:.7rem;}
+table.mx thead tr.hd1 th.price-col{background:#0a1828;color:#8090a0;min-width:55px;}
+table.mx thead tr.hd1 th.type-col{background:#0a1828;color:#8090a0;min-width:42px;}
+table.mx thead tr.hd1 th.share-hd{min-width:72px;}
+/* セクション行 */
+table.mx tr.sec-row td{background:#0d1e2a;color:#5080a0;font-size:.67rem;font-style:italic;border-top:2px solid #2a4060;text-align:left;padding:4px 8px;}
+/* 価格グループ区切り */
+table.mx tr.price-sep td{border-top:1.5px solid #1e3856;padding:0;height:2px;background:#06101c;}
+/* データ行 */
+table.mx tr.r-total{background:#0d1e34;}
+table.mx tr.r-total td.type-td{color:#b0c8e8;font-weight:700;font-size:.73rem;}
+table.mx tr.r-ch{background:#090e1c;}
+table.mx tr.r-ch td.type-td{color:#6888b8;font-size:.67rem;padding-left:10px;}
+table.mx tr.r-ops{background:#0a1018;}
+table.mx tr.r-ops td.type-td{color:#506890;font-size:.67rem;padding-left:10px;}
+table.mx td.price-td{text-align:center;background:#0a1828;color:#9090a0;font-weight:600;font-size:.72rem;vertical-align:middle;}
+table.mx td.type-td{text-align:left;background:#080e1a;min-width:46px;}
+/* 値 */
+table.mx td.num{text-align:right;font-variant-numeric:tabular-nums;}
+table.mx td.pos{color:#50d090;}
+table.mx td.neg{color:#ff7070;}
+table.mx td.nt{color:#8090a8;}
+table.mx td.dim{color:#4a6070;font-size:.67rem;}
+
+/* 凡例 */
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;font-size:.67rem;color:#4a6070;}
+.dot{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:3px;}
+
+/* 計画比較 */
+.plan-btn{background:#0a1828;border:1px solid #1a3050;color:#6090b0;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:.75rem;transition:all .15s;margin-bottom:8px;}
+.plan-btn.active{background:#0d2010;border-color:#3a7030;color:#80d060;font-weight:700;}
+.plan-btn:hover:not(.active){background:#0d1e34;}
+.plan-ratio{display:block;font-size:.58rem;margin-top:1px;font-weight:400;}
+.plan-ratio.on-target{color:#50c864;}
+.plan-ratio.near{color:#b0c860;}
+.plan-ratio.over-tgt{color:#d09060;}
+.plan-ratio.far{color:#506070;}
+table.mx td.p-on{background:rgba(80,208,100,.22)!important;}
+table.mx td.p-near{background:rgba(160,180,60,.14)!important;}
+table.mx td.p-over{background:rgba(200,120,60,.10)!important;}
+/* 計画参照テーブル */
+table.mx tr.plan-yr th{background:#0d2018;color:#5a9a60;font-size:.68rem;text-align:center;}
+table.mx tr.plan-yr td.plan-label{background:#08180e;color:#4a8a50;font-size:.65rem;padding-left:10px;}
+table.mx tr.plan-sep td{background:#06101c;height:2px;border:none;padding:0;}
+
+@media print{
+  body{background:#fff;color:#111;}
+  .panel,.ch-row{display:none;}
+  table.mx thead tr.hd1 th{background:#e8eef6 !important;color:#333 !important;}
+  table.mx tr.r-total{background:#f4f8fc !important;}
+  table.mx td.pos{color:#1a7a40 !important;}
+  table.mx td.neg{color:#c02020 !important;}
+  .tbl-wrap{overflow:visible;}
+}
+</style>
+</head>
+<body>
+<div id="outerWrap">
+
+<!-- ======= 左カラム ======= -->
+<div id="leftCol">
+
+<h1 id="pageTitle">EV充電器 損益マトリクス</h1>
+
+<!-- 計画比較モードボタン -->
+<button class="plan-btn" id="btnPlan" onclick="togglePlanMode()">📊 中期計画比較モード OFF</button>
+
+<!-- 充電器選択 -->
+<div class="ch-row">
+  <button class="ch-btn active" id="b0" onclick="selCh(0)">90kW 2口</button>
+  <button class="ch-btn"        id="b1" onclick="selCh(1)">120kW 2口</button>
+  <button class="ch-btn"        id="b2" onclick="selCh(2)">150kW 1口</button>
+  <button class="ch-btn"        id="b3" onclick="selCh(3)">180kW 2口</button>
+</div>
+
+<!-- 設定パネル -->
+<div class="panel">
+  <div class="sg sm"><label>出力率</label>
+    <select id="selOut" onchange="calc()">
+      <option value="75" selected>75%</option>
+      <option value="80">80%</option>
+      <option value="90">90%</option>
+      <option value="100">100%</option>
+    </select>
+  </div>
+  <div class="sg sm"><label>電気料金</label>
+    <select id="selPw" onchange="calc()">
+      <option value="auto" selected>★最安自動切替</option>
+      <option value="denki">電力会社</option>
+      <option value="em1">7EM①</option>
+      <option value="em2">7EM②</option>
+    </select>
+  </div>
+  <div class="sg"><label>充電器売価（本体）</label>
+    <input type="number" id="inSell" value="7350075" step="10000" onchange="calc()">
+  </div>
+  <div class="sg"><label>充電器原価（本体）</label>
+    <input type="number" id="inCost" value="5444500" step="10000" onchange="calc()">
+  </div>
+  <div class="sg sm"><label>付帯設備 売価</label>
+    <input type="number" id="inAddonSell" value="400000" step="10000" onchange="calc()">
+  </div>
+  <div class="sg sm"><label>付帯設備 原価</label>
+    <input type="number" id="inAddonCost" value="260000" step="10000" onchange="calc()">
+  </div>
+  <div class="sg sm"><label>保守原価/年/台</label>
+    <input type="number" id="inMaintCost" value="100000" step="10000" onchange="calc()">
+  </div>
+  <div class="sg sm"><label>B社固定費/月/台</label>
+    <input type="number" id="inBFixed" value="0" step="1000" onchange="calc()">
+  </div>
+  <div class="sg sm"><label>決済手数料率(%)</label>
+    <input type="number" id="inPayFee" value="3" min="0" max="10" step="0.1" onchange="calc()">
+  </div>
+  <div class="sg"><label>A社 充電器費用（売値＋付帯－補助金）/台</label>
+    <input type="number" id="inAInit" value="4750075" step="10000" onchange="calc()">
+  </div>
+  <div class="sg sm"><label>計算年数</label>
+    <input type="number" id="inNY" value="8" min="1" max="8" step="1" onchange="initGrids();calc()">
+  </div>
+</div>
+
+<!-- 年次グリッド -->
+<div class="panel" style="margin-top:-2px;gap:14px;">
+  <div class="sg" style="flex:1;min-width:280px;">
+    <label>年次別 稼働率（%）</label>
+    <div class="yr-grid" id="rGrid"></div>
+  </div>
+  <div class="sg" style="flex:1;min-width:280px;">
+    <label>年次別 台数（台）
+      <span class="units-badge" id="uBadge">8年累計: <b id="uTotal">8</b>台分</span>
+    </label>
+    <div class="yr-grid" id="uGrid"></div>
+  </div>
+</div>
+
+<!-- 前提値 -->
+<div class="info-box" id="infoBox"></div>
+
+<!-- 凡例 -->
+<div class="legend">
+  <span><span class="dot" style="background:#50d090"></span>プラス（利益）</span>
+  <span><span class="dot" style="background:#ff7070"></span>マイナス（損失）</span>
+  <span><span class="dot" style="background:#8090a8"></span>中間</span>
+  <span style="color:#3a5060;">単位：万円　　充電器行＝充電器販売損益（一時）　運用行＝シェア+保守±決済（継続）</span>
+</div>
+
+<!-- B社利益 -->
+<div class="sec-title" id="stBP">■ B社 利益　＝　B社売上 − B社原価</div>
+<div class="tbl-wrap"><table class="mx" id="tblBProfit"></table></div>
+
+<!-- B社売上 -->
+<div class="sec-title" id="stBR">■ B社 売上　＝　充電器販売額（本体＋付帯設備）＋ 運用収入（シェア＋固定費）＋ 保守収入（24万/年/台）</div>
+<div class="tbl-wrap"><table class="mx" id="tblBRev"></table></div>
+
+<!-- B社原価 -->
+<div class="sec-title" id="stBC">■ B社 原価　＝　充電器原価（本体＋付帯設備）＋ 保守原価（10万/年/台）＋ 決済手数料（3%）</div>
+<div class="tbl-wrap"><table class="mx" id="tblBCost"></table></div>
+
+<!-- A社 -->
+<div class="sec-title" id="stAP">■ A社 利益　＝　A社売上 − A社原価</div>
+<div class="tbl-wrap"><table class="mx" id="tblAProfit"></table></div>
+
+<div class="sec-title" id="stAR">■ A社 売上　＝　事業全体の充電収入（100%）</div>
+<div class="tbl-wrap"><table class="mx" id="tblARev"></table></div>
+
+<div class="sec-title" id="stAC">■ A社 原価　＝　充電器費用（売値＋付帯－補助金）＋ B社シェア（売上×%＋固定費）＋ 保守費（2万/月/台）＋ 高圧電技（10万/年/台）＋ 電気代</div>
+<div class="tbl-wrap"><table class="mx" id="tblACost"></table></div>
+
+</div><!-- /leftCol -->
+
+<!-- ======= 右パネル: 中期計画 達成率 ======= -->
+<div id="planSide">
+  <div style="font-size:.78rem;font-weight:700;color:#70b060;margin-bottom:8px;letter-spacing:.5px;border-bottom:1px solid #1a3050;padding-bottom:6px;">
+    📊 B社 中期計画 達成率
+  </div>
+
+  <!-- 条件選択 -->
+  <div class="cmp-card" style="margin-bottom:8px;">
+    <div class="cmp-title">比較条件を選択</div>
+    <div class="cmp-sel">
+      <div class="sg sm"><label>分単価</label>
+        <select id="cmpPrice" onchange="calc()"></select>
+      </div>
+      <div class="sg sm"><label>B社シェア</label>
+        <select id="cmpShare" onchange="calc()"></select>
+      </div>
+      <button class="auto-btn" onclick="autoSelectBest()">★最近接</button>
+    </div>
+  </div>
+
+  <!-- 5年累計 達成率ゲージ -->
+  <div class="cmp-card">
+    <div class="cmp-title">5年累計 達成率</div>
+    <div id="gauges"></div>
+  </div>
+
+  <!-- 年別粗利比較 -->
+  <div class="cmp-card" style="margin-top:8px;">
+    <div class="cmp-title">年別 B社粗利 比較</div>
+    <table class="yr-cmp-tbl" id="tblYrCmp">
+      <thead><tr><th>年度</th><th>台数</th><th>計画</th><th>試算</th><th>達成率</th></tr></thead>
+      <tbody id="yrCmpBody"></tbody>
+    </table>
+  </div>
+
+  <!-- 計画参照（折りたたみ） -->
+  <div style="margin-top:10px;">
+    <div style="font-size:.62rem;color:#4a7080;cursor:pointer;padding:3px 0;border-top:1px solid #1a3050;margin-top:4px;"
+         onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display?'':'none'">
+      ▾ B社 中期計画データ（参照）
+    </div>
+    <div style="overflow-x:auto;margin-top:4px;">
+      <table class="mx" id="tblPlanRef" style="font-size:.58rem;"></table>
+    </div>
+  </div>
+
+  <!-- ヒートマップ（参照用） -->
+  <div style="margin-top:10px;border-top:1px solid #1a3050;padding-top:8px;">
+    <div style="font-size:.62rem;color:#4a7080;margin-bottom:3px;" id="stHeatBP">粗利 達成比率マップ</div>
+    <div style="font-size:.58rem;color:#3a5060;margin-bottom:3px;">
+      <span style="background:rgba(80,208,100,.22);padding:1px 3px;border-radius:2px;">±5%</span>
+      <span style="background:rgba(160,180,60,.14);padding:1px 3px;border-radius:2px;margin-left:3px;">±15%</span>
+    </div>
+    <div style="overflow-x:auto;"><table class="mx" id="tblHeatBP" style="font-size:.56rem;"></table></div>
+    <div style="font-size:.62rem;color:#4a7080;margin:6px 0 3px;" id="stHeatBR">売上 達成比率マップ</div>
+    <div style="overflow-x:auto;"><table class="mx" id="tblHeatBR" style="font-size:.56rem;"></table></div>
+  </div>
+
+</div>
+
+</div><!-- /outerWrap -->
+
+<script>
+// ==== 中期計画データ ====
+const PLAN = {
+  years:   ['2026','2027','2028','2029','2030'],
+  units:   [6, 50, 300, 300, 400],
+  bRev:    [37529203, 335668207, 2071251844, 2746047594, 4155899608],
+  bCost:   [30657092, 267334855, 1650046614, 2178826875, 3300951911],
+  bProfit: [6872111,  68333352,  421205230,  567220719,  854947697],
+  revFlow: [36759780, 313249850, 1879499100, 1879499100, 2505998800],
+  revStock:[769423, 22418357, 191752744, 866548494, 1649900808],
+  costFlow:[30057000, 250262500, 1501575000, 1501575000, 2002100000],
+  costStock:[600092, 17072355, 148471614, 677251875, 1298851911],
+  get totalBRev()  { return this.bRev.reduce((a,b)=>a+b,0); },
+  get totalBCost() { return this.bCost.reduce((a,b)=>a+b,0); },
+  get totalBProfit(){ return this.bProfit.reduce((a,b)=>a+b,0); },
+};
+let planMode = false;
+
+// セレクター初期化
+function initCmpSelectors(){
+  const ps = document.getElementById('cmpPrice');
+  const ss = document.getElementById('cmpShare');
+  if(!ps.options.length){
+    PRICES.forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=p+'円'; ps.appendChild(o); });
+    ps.value = '100';
+  }
+  if(!ss.options.length){
+    SHARES.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s+'%'; ss.appendChild(o); });
+    ss.value = '20';
+  }
+}
+
+function getCmpPrice(){ return parseInt(document.getElementById('cmpPrice').value)||100; }
+function getCmpShare(){ return parseInt(document.getElementById('cmpShare').value)||20; }
+
+function autoSelectBest(){
+  // 全データからbestを探して選択（直近のcalcで計算済みのlastDataを使う）
+  if(!lastData) return;
+  let best={diff:Infinity,pi:0,si:0};
+  for(let pi=0;pi<PRICES.length;pi++) for(let si=0;si<SHARES.length;si++){
+    const d=Math.abs(lastData[pi][si].bProfit/PLAN.totalBProfit-1);
+    if(d<best.diff) best={diff:d,pi,si};
+  }
+  document.getElementById('cmpPrice').value = PRICES[best.pi];
+  document.getElementById('cmpShare').value = SHARES[best.si];
+  calc();
+}
+let lastData = null;
+
+function togglePlanMode(){
+  planMode = !planMode;
+  const btn = document.getElementById('btnPlan');
+  btn.classList.toggle('active', planMode);
+  btn.textContent = planMode ? '📊 中期計画比較モード ON' : '📊 中期計画比較モード OFF';
+  document.getElementById('planSide').style.display = planMode ? '' : 'none';
+  if(planMode){
+    initCmpSelectors();
+    document.getElementById('inNY').value = 5;
+    initGrids();
+    PLAN.units.forEach((u,y)=>{ const el=document.getElementById('uy'+y); if(el) el.value=u; });
+    updU();
+    buildPlanRefTable();
+  }
+  calc();
+}
+
+// 達成率ゲージを描画
+function renderGauge(label, calcV, planV){
+  const r  = planV > 0 ? calcV / planV : 0;
+  const pct= Math.round(r * 100);
+  const barW = Math.min(130, Math.max(0, pct)); // 130% cap
+  const cls = pct>=95&&pct<=105?'on-target':pct>=80?'near':pct>=60?'under':'far';
+  const barColor = pct>=95&&pct<=105?'#50c864':pct>=80?'#b0d040':pct>=60?'#d08040':'#d06060';
+  const diff = calcV - planV;
+  return `
+    <div class="gauge-block">
+      <div class="gauge-header">
+        <span class="gauge-label">${label}</span>
+        <span class="gauge-pct ${cls}">${pct}%</span>
+      </div>
+      <div class="gauge-track">
+        <div class="gauge-fill" style="width:${Math.min(100,barW)}%;background:${barColor};"></div>
+      </div>
+      <div class="gauge-sub">
+        <span class="calc-v">試算 ${fmt(calcV)}</span>
+        <span class="plan-v">計画 ${fmt(planV)}　差 <span style="color:${diff>=0?'#50c864':'#d06060'}">${fmt(diff)}</span></span>
+      </div>
+    </div>`;
+}
+
+// 年別比較行
+function renderYrCmp(ny, units, rates, ch, params, selPrice, selShare){
+  const sh = selShare / 100;
+  let html = '';
+  for(let y=0; y<Math.min(ny,5); y++){
+    const newUnitsY = Math.max(0, units[y] - (y>0?units[y-1]:0));
+    const rev_y   = rates[y]/100 * 365*24*60 * selPrice * ch.ports * units[y];
+    const payFee_y= rev_y * params.pfR;
+    const bFixed_y = (params.bFixed||0)*12*units[y];
+    const bRev_y  = (params.sell+params.asSell)*newUnitsY + rev_y*sh + bFixed_y + 240000*units[y];
+    const bCost_y = (params.cost+params.asCost)*newUnitsY + params.mCost*units[y] + payFee_y;
+    const bProfit_y = bRev_y - bCost_y;
+    const planP = PLAN.bProfit[y] || 0;
+    const ratio = planP > 0 ? Math.round(bProfit_y / planP * 100) : 0;
+    const barW  = Math.min(100, Math.max(0, ratio));
+    const barColor = ratio>=95&&ratio<=105?'#50c864':ratio>=80?'#b0d040':ratio>=60?'#d08040':'#d06060';
+    const diffCls = bProfit_y >= planP ? 'diff-pos' : 'diff-neg';
+    html += `<tr>
+      <td class="yr-lbl">${PLAN.years[y]||`${y+1}年`}</td>
+      <td style="text-align:center;color:#4a8060;">${units[y]}</td>
+      <td class="plan-col">${fmt(planP)}</td>
+      <td class="calc-col">${fmt(bProfit_y)}</td>
+      <td>
+        <div class="mini-bar-wrap">
+          <div class="mini-track"><div class="mini-fill" style="width:${barW}%;background:${barColor};"></div></div>
+          <span class="mini-pct ${diffCls}">${ratio}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }
+  return html;
+}
+
+// 計画比較パネル更新
+function updatePlanPanel(data, ny, units, rates, ch, params){
+  if(!planMode) return;
+  const pi = PRICES.indexOf(getCmpPrice());
+  const si = SHARES.indexOf(getCmpShare());
+  if(pi<0||si<0) return;
+  const d = data[pi][si];
+
+  // ゲージ
+  document.getElementById('gauges').innerHTML =
+    renderGauge('粗　利', d.bProfit, PLAN.totalBProfit) +
+    renderGauge('売　上', d.bRev,    PLAN.totalBRev) +
+    renderGauge('原　価', d.bCost,   PLAN.totalBCost);
+
+  // 年別比較
+  document.getElementById('yrCmpBody').innerHTML =
+    renderYrCmp(ny, units, rates, ch, params, getCmpPrice(), getCmpShare());
+}
+
+function buildPlanRefTable(){
+  const tbl = document.getElementById('tblPlanRef');
+  if(!tbl) return;
+  const ny = PLAN.years.length;
+  let h = `<thead><tr class="plan-yr">
+    <th style="min-width:48px;background:#0a1828;color:#6090b0;">項目</th>
+    <th style="min-width:42px;background:#0a1828;color:#6090b0;">内訳</th>`;
+  PLAN.years.forEach((yr,i)=>h+=`<th>${yr}<br><span style="font-size:.6rem;color:#4a8060;">${PLAN.units[i]}台</span></th>`);
+  h += `<th style="background:#0d2018;color:#70c060;">5年累計</th></tr></thead><tbody>`;
+
+  function planRow(label, sub, arr, total, neg=false){
+    const sign = neg ? -1 : 1;
+    let r = `<tr class="plan-yr"><td class="type-td" style="background:#08140e;color:#4a9060;">${label}</td>
+      <td class="type-td plan-label">${sub}</td>`;
+    arr.forEach(v=>r+=`<td class="num ${cls(sign*v)}">${fmt(sign*v)}</td>`);
+    r += `<td class="num ${cls(sign*total)}" style="font-weight:700">${fmt(sign*total)}</td></tr>`;
+    return r;
+  }
+  const sum = arr => arr.reduce((a,b)=>a+b,0);
+
+  h += planRow('売上','ALL',   PLAN.bRev,    PLAN.totalBRev);
+  h += planRow('',   'フロー', PLAN.revFlow, sum(PLAN.revFlow));
+  h += planRow('',   'ストック',PLAN.revStock,sum(PLAN.revStock));
+  h += `<tr class="plan-sep">${'<td></td>'.repeat(2+ny+1)}</tr>`;
+  h += planRow('原価','ALL',   PLAN.bCost,    PLAN.totalBCost, true);
+  h += planRow('',   'フロー', PLAN.costFlow, sum(PLAN.costFlow), true);
+  h += planRow('',   'ストック',PLAN.costStock,sum(PLAN.costStock), true);
+  h += `<tr class="plan-sep">${'<td></td>'.repeat(2+ny+1)}</tr>`;
+  h += planRow('粗利','ALL',   PLAN.bProfit,  PLAN.totalBProfit);
+
+  tbl.innerHTML = h + '</tbody>';
+}
+
+function buildHeatmap(data, targetProfit, targetRev){
+  const tpStr = fmt(targetProfit);
+  const trStr = fmt(targetRev);
+  const targetCost = PLAN.totalBCost;
+  document.getElementById('stHeatBP').textContent =
+    `B社粗利 計画達成比率（計画: ${tpStr}）`;
+  document.getElementById('stHeatBR').textContent =
+    `B社売上 計画達成比率（計画: ${trStr}）`;
+
+  function heatTable(tableId, getVal, target){
+    const tbl = document.getElementById(tableId);
+    if(!tbl) return;
+    let h = `<thead><tr class="hd1"><th class="price-col">分単価</th>`;
+    for(const sh of SHARES) h+=`<th class="share-hd">B社${sh}%</th>`;
+    h += `</tr></thead><tbody>`;
+    for(let pi=0;pi<PRICES.length;pi++){
+      if(pi>0) h+=`<tr class="price-sep">${'<td></td>'.repeat(1+SHARES.length)}</tr>`;
+      h+=`<tr class="r-total"><td class="price-td">${PRICES[pi]}円</td>`;
+      for(let si=0;si<SHARES.length;si++){
+        const v = getVal(pi,si);
+        const ratio = target>0 ? v/target : 0;
+        const pct   = Math.round(ratio*100);
+        const diff  = Math.abs(ratio-1);
+        let tdCls='', ratCls='far';
+        if(diff<=0.05){ tdCls='p-on';   ratCls='on-target'; }
+        else if(diff<=0.15){ tdCls='p-near'; ratCls='near'; }
+        else if(diff<=0.30){ tdCls='p-over'; ratCls='over-tgt'; }
+        h+=`<td class="num ${tdCls}">
+          <span style="font-weight:600;color:${v>=0?'#a0d0a0':'#d08080'}">${fmt(v)}</span>
+          <span class="plan-ratio ${ratCls}">${pct>0?pct+'%':'―'}</span>
+        </td>`;
+      }
+      h+=`</tr>`;
+    }
+    tbl.innerHTML = h+'</tbody>';
+  }
+
+  heatTable('tblHeatBP', (pi,si)=>data[pi][si].bProfit, targetProfit);
+  heatTable('tblHeatBR', (pi,si)=>data[pi][si].bRev,    targetRev);
+}
+
+// ==== 充電器マスタ ====
+const CH = [
+  {label:'90kW 2口',  kw:90,  ports:2, sell:5250015, cost:3888900, aInit:3650015},
+  {label:'120kW 2口', kw:120, ports:2, sell:6150060, cost:4555600, aInit:4550060},
+  {label:'150kW 1口', kw:150, ports:1, sell:7350075, cost:5444500, aInit:4750075},
+  {label:'180kW 2口', kw:180, ports:2, sell:9150030, cost:6777800, aInit:4550030},
+];
+let cur = 2; // デフォルト150kW
+
+const SHARES = [15,18,20,23,25,28,30];
+const PRICES = [100,110,120,130,140,150,160,170,180,190,200];
+const DEF_RATES = [3,4.5,6,7.5,9,10.5,12,13.5];
+
+// 現在の稼働率・台数を保存（年数変更時に引き継ぎ）
+let savedRates = [...DEF_RATES];
+let savedUnits = [1,1,1,1,1,1,1,1];
+
+function getNY(){ return Math.min(8, Math.max(1, parseInt(document.getElementById('inNY').value)||8)); }
+
+// ==== グリッド初期化 ====
+function initGrids(){
+  const ny = getNY();
+  // 現在値を保存
+  for(let y=0;y<8;y++){
+    const re=document.getElementById('ry'+y), ue=document.getElementById('uy'+y);
+    if(re) savedRates[y]=parseFloat(re.value)||DEF_RATES[y];
+    if(ue) savedUnits[y]=Math.max(0,parseFloat(ue.value)||0);
+  }
+  let rh='', uh='';
+  for(let y=0;y<ny;y++){
+    rh+=`<div class="yr-item"><label>${y+1}年</label><input type="number" id="ry${y}" value="${savedRates[y]}" min="0" max="100" step="0.5" oninput="calc()"><span style="font-size:.6rem;color:#405060">%</span></div>`;
+    uh+=`<div class="yr-item u"><label>${y+1}年</label><input type="number" id="uy${y}" value="${savedUnits[y]}" min="0" max="99" step="1" oninput="updU();calc()"><span style="font-size:.6rem;color:#705010">台</span></div>`;
+  }
+  document.getElementById('rGrid').innerHTML=rh;
+  document.getElementById('uGrid').innerHTML=uh;
+  // バッジの「N年累計」を更新
+  const badge=document.getElementById('uBadge');
+  if(badge) badge.firstChild.textContent=ny+'年累計: ';
+  updU();
+}
+
+function updU(){
+  const ny=getNY();
+  let s=0;
+  for(let y=0;y<ny;y++) s+=Math.max(0,parseFloat(document.getElementById('uy'+y).value)||0);
+  document.getElementById('uTotal').textContent=s;
+}
+
+// ==== 充電器切替 ====
+function selCh(i){
+  cur=i;
+  document.querySelectorAll('.ch-btn').forEach((b,j)=>b.classList.toggle('active',j===i));
+  const c=CH[i];
+  document.getElementById('inSell').value=c.sell;
+  document.getElementById('inCost').value=c.cost;
+  document.getElementById('inAInit').value=c.aInit;
+  calc();
+}
+
+// ==== ヘルパー ====
+function gv(id){return parseFloat(document.getElementById(id).value)||0;}
+function fmt(v){
+  const a=Math.abs(Math.round(v));
+  let s;
+  if(a>=100000000) s=Math.round(a/1000000)/100+'億';
+  else if(a>=10000) s=Math.round(a/10000)+'万';
+  else s=a.toLocaleString();
+  return (v<0?'▲':'')+s;
+}
+function cls(v){return v>0?'pos':v<0?'neg':'nt';}
+
+// ==== 電気代（1台/年） ====
+function elecY(rPct, kw, outPct){
+  const eff=kw*outPct/100;
+  const m=rPct/100*365*24*60;
+  const kpm=eff/60;
+  const de=2530*kw*12+m*kpm*17.43;
+  const e1=100000*12+m*kpm*30;
+  const e2=0+m*kpm*45;
+  const pw=document.getElementById('selPw').value;
+  if(pw==='denki') return de;
+  if(pw==='em1')   return e1;
+  if(pw==='em2')   return e2;
+  return Math.min(de,e1,e2);
+}
+
+// ==== メイン計算 ====
+function calc(){
+  const ch    = CH[cur];
+  const outP  = parseFloat(document.getElementById('selOut').value);
+  const sell  = gv('inSell');    // 充電器本体売価
+  const cost  = gv('inCost');    // 充電器本体原価
+  const asSell= gv('inAddonSell');// 付帯設備売価
+  const asCost= gv('inAddonCost');// 付帯設備原価
+  const MAINT_SELL = 240000;           // 保守売値/年/台（固定: 2万/月）
+  const mCost = gv('inMaintCost');     // 保守原価/年/台
+  const bFixed = gv('inBFixed');       // B社固定費/月/台
+  const pfR      = gv('inPayFee')/100; // 決済手数料率
+  const aInit    = gv('inAInit');      // A社充電器費用（売値＋付帯－補助金）/台
+  const elecTech = 100000;             // 高圧電気技術者費/年/台（固定）
+
+  const ny = getNY();
+  const rates = Array.from({length:ny},(_,y)=>parseFloat(document.getElementById('ry'+y).value)||0);
+  const units = Array.from({length:ny},(_,y)=>Math.max(0,parseFloat(document.getElementById('uy'+y).value)||0));
+  // 電気代（年別1台分 → 台数加重N年累計）
+  const elec8 = rates.reduce((a,r,y)=>a+elecY(r,ch.kw,outP)*units[y], 0);
+  // 累積台数合計（延べ台数×年）
+  const totalUY = units.reduce((a,b)=>a+b, 0);
+  // 新規台数（初年度 + 増分）
+  let newUnits = 0;
+  for(let y=0;y<ny;y++) newUnits += Math.max(0, units[y] - (y>0?units[y-1]:0));
+
+  // ページタイトル・セクションタイトル
+  document.getElementById('pageTitle').textContent=`EV充電器 損益マトリクス（${ch.label} / ${ny}年）`;
+  document.getElementById('stBP').textContent=`■ B社 利益（${ny}年累計）＝　B社売上 − B社原価`;
+  document.getElementById('stBR').textContent=`■ B社 売上（${ny}年累計）＝　充電器販売額（本体＋付帯設備）＋ 運用収入（シェア＋固定費）＋ 保守収入（24万/年/台）`;
+  document.getElementById('stBC').textContent=`■ B社 原価（${ny}年累計）＝　充電器原価（本体＋付帯設備）＋ 保守原価（10万/年/台）＋ 決済手数料（3%）`;
+  document.getElementById('stAP').textContent=`■ A社 利益（${ny}年累計）＝　A社売上 − A社原価`;
+  document.getElementById('stAR').textContent=`■ A社 売上（${ny}年累計）＝　事業全体の充電収入（100%）`;
+  document.getElementById('stAC').textContent=`■ A社 原価（${ny}年累計）＝　充電器費用（売値＋付帯－補助金）＋ B社シェア（売上×%＋固定費）＋ 保守費（2万/月/台）＋ 高圧電技（10万/年/台）＋ 電気代`;
+
+  // 前提値
+  const uStr = units.map((u,i)=>`<span class="v">${i+1}年:${u}台</span>`).join(' ');
+  document.getElementById('infoBox').innerHTML=`
+    <strong>充電器</strong><span class="v">${ch.label}（${ch.kw}kW ${ch.ports}口）</span>
+    <strong>出力</strong><span class="v">${outP}%（実効${ch.kw*outP/100}kW）</span>
+    <strong>${ny}年累計電気代</strong><span class="v">${fmt(elec8)}</span><br>
+    <strong>本体売価/原価</strong><span class="v">${fmt(sell)} / ${fmt(cost)}</span>
+    <strong>付帯設備売価/原価</strong><span class="v">${fmt(asSell)} / ${fmt(asCost)}</span><br>
+    <strong>保守</strong>売値 <span class="v">2万/月/台（固定）</span>　原価 <span class="v">${fmt(mCost)}/年/台</span>
+    <strong>B社固定費</strong><span class="v">${fmt(bFixed)}/月/台</span>　<strong>決済手数料</strong><span class="v">${(pfR*100).toFixed(1)}%</span><br>
+    <strong>A社 充電器費用</strong><span class="v">${fmt(aInit)}/台</span>
+    <strong>A社 高圧電技</strong><span class="v">10万/年/台（固定）</span><br>
+    <strong>稼働率</strong> ${rates.map((r,i)=>`<span class="v">${i+1}年:${r}%</span>`).join(' ')}
+    <strong>台数</strong> ${uStr}　→ 延べ <span class="v">${totalUY}台年分</span>　新規 <span class="v">${newUnits}台</span>　計算 <span class="v">${ny}年</span>
+  `;
+  updU();
+
+  // ==== 価格×シェア計算 ====
+  // data[pi][si] = { bRev_ch, bRev_ops, bCost_ch, bCost_ops, aRev, aProfit }
+  const data=[];
+  for(let pi=0;pi<PRICES.length;pi++){
+    const p=PRICES[pi];
+    data[pi]=[];
+    // N年累計充電収入（台数加重、ポート数倍）
+    let rev8=0, payFee8=0;
+    for(let y=0;y<ny;y++){
+      const r=rates[y]/100*365*24*60*p*ch.ports*units[y];
+      rev8   += r;
+      payFee8+= r*pfR;
+    }
+
+    for(let si=0;si<SHARES.length;si++){
+      const sh=SHARES[si]/100;
+
+      // B社売上
+      const bRev_ch   = (sell+asSell)*newUnits;             // 充電器（本体＋付帯）販売売上
+      const bRev_ops  = rev8*sh + bFixed*12*totalUY;        // 運用: シェア + 固定費
+      const bRev_maint= MAINT_SELL * totalUY;               // 保守収入（24万/年/台）
+
+      // B社原価
+      const bCost_ch  = (cost+asCost)*newUnits;             // 充電器（本体＋付帯）原価
+      const bCost_ops = mCost*totalUY + payFee8;            // 保守原価 + 決済手数料
+
+      // B社利益
+      const bP_ch  = bRev_ch  - bCost_ch;
+      const bP_ops = bRev_ops + bRev_maint - bCost_ops;
+
+      // A社
+      // 売上 = 事業全体の充電収入
+      const aRev     = rev8;
+      // 原価①: 充電器費用（一時、補助金控除後）
+      const aCost_ch = aInit * newUnits;
+      // 原価②: B社シェア支払（売上×%＋固定費/月）
+      const aCost_share = rev8*sh + bFixed*12*totalUY;
+      // 原価③: 保守費（2万/月/台 = 24万/年/台）
+      const aCost_maint = MAINT_SELL * totalUY;
+      // 原価④: 高圧電気技術者（10万/年/台・固定）
+      const aCost_tech  = elecTech * totalUY;
+      // 原価⑤: 電気代
+      const aCost_elec  = elec8;
+      // 運用原価合計
+      const aCost_op = aCost_share + aCost_maint + aCost_tech + aCost_elec;
+      const aProfit  = aRev - aCost_ch - aCost_op;
+
+      data[pi][si]={
+        bRev_ch, bRev_ops, bRev_maint, bRev:bRev_ch+bRev_ops+bRev_maint,
+        bCost_ch, bCost_ops, bCost:bCost_ch+bCost_ops,
+        bP_ch, bP_ops, bProfit:bP_ch+bP_ops,
+        aRev, aCost_ch, aCost_share, aCost_maint, aCost_tech, aCost_elec, aCost_op, aProfit
+      };
+    }
+  }
+
+  // ==== テーブル描画 ====
+  function buildTable(id, getVals){
+    const tbl=document.getElementById(id);
+    // ヘッダ
+    let h=`<thead><tr class="hd1">
+      <th class="price-col" rowspan="2">分単価<br>（円/分）</th>
+      <th class="type-col" rowspan="2">内訳</th>`;
+    for(const sh of SHARES) h+=`<th class="share-hd">B社${sh}%</th>`;
+    h+=`</tr></thead><tbody>`;
+
+    for(let pi=0;pi<PRICES.length;pi++){
+      if(pi>0){
+        const cols=2+SHARES.length;
+        h+=`<tr class="price-sep">${'<td></td>'.repeat(cols)}</tr>`;
+      }
+      const p=PRICES[pi];
+      const rows=getVals(pi);
+      let firstRow=true;
+      for(const row of rows){
+        h+=`<tr class="${row.trC}">`;
+        if(firstRow){
+          h+=`<td class="price-td" rowspan="${rows.length}">${p}円</td>`;
+          firstRow=false;
+        }
+        h+=`<td class="type-td ${row.trC==='r-total'?'':'dim'}">${row.label}</td>`;
+        for(let si=0;si<SHARES.length;si++){
+          const v=row.vals[si];
+          h+=`<td class="num ${cls(v)}">${fmt(v)}</td>`;
+        }
+        h+=`</tr>`;
+      }
+    }
+    tbl.innerHTML=h+'</tbody>';
+  }
+
+  // B社利益
+  buildTable('tblBProfit', pi=>[
+    {label:'合計', trC:'r-total', vals:SHARES.map((_,si)=>data[pi][si].bProfit)},
+    {label:'充電器', trC:'r-ch',   vals:SHARES.map((_,si)=>data[pi][si].bP_ch)},
+    {label:'運用',   trC:'r-ops',  vals:SHARES.map((_,si)=>data[pi][si].bP_ops)},
+  ]);
+
+  // B社売上
+  buildTable('tblBRev', pi=>[
+    {label:'合計',         trC:'r-total', vals:SHARES.map((_,si)=>data[pi][si].bRev)},
+    {label:'充電器',       trC:'r-ch',    vals:SHARES.map((_,si)=>data[pi][si].bRev_ch)},
+    {label:'運用(シェア+固定)', trC:'r-ops', vals:SHARES.map((_,si)=>data[pi][si].bRev_ops)},
+    {label:'保守収入',     trC:'r-ops',   vals:SHARES.map((_,si)=>data[pi][si].bRev_maint)},
+  ]);
+
+  // B社原価
+  buildTable('tblBCost', pi=>[
+    {label:'合計', trC:'r-total', vals:SHARES.map((_,si)=>-data[pi][si].bCost)},
+    {label:'充電器', trC:'r-ch',   vals:SHARES.map((_,si)=>-data[pi][si].bCost_ch)},
+    {label:'運用',   trC:'r-ops',  vals:SHARES.map((_,si)=>-data[pi][si].bCost_ops)},
+  ]);
+
+  // A社利益
+  buildTable('tblAProfit', pi=>[
+    {label:'合計',      trC:'r-total', vals:SHARES.map((_,si)=>data[pi][si].aProfit)},
+    {label:'充電器分',  trC:'r-ch',    vals:SHARES.map((_,si)=>-data[pi][si].aCost_ch)},
+    {label:'運用分',    trC:'r-ops',   vals:SHARES.map((_,si)=>data[pi][si].aRev-data[pi][si].aCost_op)},
+  ]);
+
+  // A社売上
+  buildTable('tblARev', pi=>[
+    {label:'合計',      trC:'r-total', vals:SHARES.map((_,si)=>data[pi][si].aRev)},
+    {label:'充電器分',  trC:'r-ch',    vals:SHARES.map(()=>0)},
+    {label:'運用分',    trC:'r-ops',   vals:SHARES.map((_,si)=>data[pi][si].aRev)},
+  ]);
+
+  // A社原価
+  buildTable('tblACost', pi=>[
+    {label:'合計',              trC:'r-total', vals:SHARES.map((_,si)=>-(data[pi][si].aCost_ch+data[pi][si].aCost_op))},
+    {label:'充電器費用',        trC:'r-ch',    vals:SHARES.map((_,si)=>-data[pi][si].aCost_ch)},
+    {label:'B社シェア+固定費',  trC:'r-ops',   vals:SHARES.map((_,si)=>-data[pi][si].aCost_share)},
+    {label:'保守費(2万/月/台)', trC:'r-ops',   vals:SHARES.map((_,si)=>-data[pi][si].aCost_maint)},
+    {label:'高圧電技(10万/台)', trC:'r-ops',   vals:SHARES.map((_,si)=>-data[pi][si].aCost_tech)},
+    {label:'電気代',            trC:'r-ops',   vals:SHARES.map((_,si)=>-data[pi][si].aCost_elec)},
+  ]);
+
+  // 計画比較
+  if(planMode){
+    lastData = data;
+    const params = { sell, asSell, cost, asCost, mCost, bFixed, pfR };
+    buildHeatmap(data, PLAN.totalBProfit, PLAN.totalBRev);
+    updatePlanPanel(data, ny, units, rates, ch, params);
+  }
+}
+
+// 初期化
+initGrids();
+selCh(2); // 150kW デフォルト
+</script>
+</body>
+</html>
