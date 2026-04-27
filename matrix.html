@@ -430,14 +430,18 @@ function renderGauge(label, calcV, planV){
 // 年別比較行
 function renderYrCmp(ny, units, rates, ch, params, selPrice, selShare){
   const sh = selShare / 100;
+  // 累計運用台数を事前計算
+  const cumU = [];
+  let c = 0;
+  for(let y=0;y<ny;y++){ c+=units[y]; cumU.push(c); }
   let html = '';
   for(let y=0; y<Math.min(ny,5); y++){
-    const newUnitsY = Math.max(0, units[y] - (y>0?units[y-1]:0));
-    const rev_y   = rates[y]/100 * 365*24*60 * selPrice * ch.ports * units[y];
+    const newUnitsY = units[y]; // その年の新規台数
+    const rev_y   = rates[y]/100 * 365*24*60 * selPrice * ch.ports * cumU[y]; // 累計運用台数ベース
     const payFee_y= rev_y * params.pfR;
-    const bFixed_y = (params.bFixed||0)*12*units[y];
-    const bRev_y  = (params.sell+params.asSell)*newUnitsY + rev_y*sh + bFixed_y + 240000*units[y];
-    const bCost_y = (params.cost+params.asCost)*newUnitsY + params.mCost*units[y] + payFee_y;
+    const bFixed_y = (params.bFixed||0)*12*cumU[y];
+    const bRev_y  = (params.sell+params.asSell)*newUnitsY + rev_y*sh + bFixed_y + 240000*cumU[y];
+    const bCost_y = (params.cost+params.asCost)*newUnitsY + params.mCost*cumU[y] + payFee_y;
     const bProfit_y = bRev_y - bCost_y;
     const planP = PLAN.bProfit[y] || 0;
     const ratio = planP > 0 ? Math.round(bProfit_y / planP * 100) : 0;
@@ -658,12 +662,18 @@ function calc(){
   const rates = Array.from({length:ny},(_,y)=>parseFloat(document.getElementById('ry'+y).value)||0);
   const units = Array.from({length:ny},(_,y)=>Math.max(0,parseFloat(document.getElementById('uy'+y).value)||0));
   // 電気代（年別1台分 → 台数加重N年累計）
-  const elec8 = rates.reduce((a,r,y)=>a+elecY(r,ch.kw,outP)*units[y], 0);
-  // 累積台数合計（延べ台数×年）
-  const totalUY = units.reduce((a,b)=>a+b, 0);
-  // 新規台数（初年度 + 増分）
-  let newUnits = 0;
-  for(let y=0;y<ny;y++) newUnits += Math.max(0, units[y] - (y>0?units[y-1]:0));
+  // units[y] = その年の新規台数（追加分）
+  // cumUnits[y] = y年目末時点の累計運用台数
+  const cumUnits = [];
+  let cum = 0;
+  for(let y=0;y<ny;y++){ cum += units[y]; cumUnits.push(cum); }
+
+  // 新規台数（充電器販売台数）= 各年の新規台数の合計
+  const newUnits = units.reduce((a,b)=>a+b, 0);
+  // 延べ台数×年（保守費・高圧電技費計算用）= 各年の累計運用台数の合計
+  const totalUY = cumUnits.reduce((a,b)=>a+b, 0);
+  // 電気代（各年の累計運用台数ベース）
+  const elec8 = rates.reduce((a,r,y)=>a+elecY(r,ch.kw,outP)*cumUnits[y], 0);
 
   // ページタイトル・セクションタイトル
   document.getElementById('pageTitle').textContent=`EV充電器 損益マトリクス（${ch.label} / ${ny}年）`;
@@ -687,7 +697,8 @@ function calc(){
     <strong>A社 充電器費用</strong><span class="v">${fmt(aInit)}/台</span>
     <strong>A社 高圧電技</strong><span class="v">10万/年/台（固定）</span><br>
     <strong>稼働率</strong> ${rates.map((r,i)=>`<span class="v">${i+1}年:${r}%</span>`).join(' ')}
-    <strong>台数</strong> ${uStr}　→ 延べ <span class="v">${totalUY}台年分</span>　新規 <span class="v">${newUnits}台</span>　計算 <span class="v">${ny}年</span>
+    <strong>新規台数/年</strong> ${uStr}<br>
+    <strong>累計運用台数</strong> ${cumUnits.map((c,i)=>`<span class="v">${i+1}年末:${c}台</span>`).join(' ')}　→ 新規合計 <span class="v">${newUnits}台</span>　延べ <span class="v">${totalUY}台年分</span>　計算 <span class="v">${ny}年</span>
   `;
   updU();
 
@@ -700,7 +711,7 @@ function calc(){
     // N年累計充電収入（台数加重、ポート数倍）
     let rev8=0, payFee8=0;
     for(let y=0;y<ny;y++){
-      const r=rates[y]/100*365*24*60*p*ch.ports*units[y];
+      const r=rates[y]/100*365*24*60*p*ch.ports*cumUnits[y]; // 累計運用台数ベース
       rev8   += r;
       payFee8+= r*pfR;
     }
